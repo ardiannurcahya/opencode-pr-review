@@ -55,20 +55,25 @@ export class WorkspaceManager {
       );
     }
 
-    // Fetch PR head branch and checkout
+    // Fetch PR head branch and base branch
     await execFileAsync(
       'git',
-      ['fetch', 'origin', `pull/${prNumber}/head:pr-${prNumber}`, '--force'],
+      ['fetch', 'origin', `pull/${prNumber}/head`, '--force'],
       { cwd: workspacePath }
     );
 
-    await execFileAsync('git', ['checkout', `pr-${prNumber}`], {
-      cwd: workspacePath,
-    });
+    await execFileAsync(
+      'git',
+      ['checkout', '-B', `pr-${prNumber}`, 'FETCH_HEAD'],
+      { cwd: workspacePath }
+    );
 
-    await execFileAsync('git', ['reset', '--hard', headSha], {
-      cwd: workspacePath,
-    });
+    // Ensure base branch is fetched from origin for diff comparison
+    try {
+      await execFileAsync('git', ['fetch', 'origin', 'main'], {
+        cwd: workspacePath,
+      });
+    } catch {}
 
     await execFileAsync('git', ['clean', '-fd'], {
       cwd: workspacePath,

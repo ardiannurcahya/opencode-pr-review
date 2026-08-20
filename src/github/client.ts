@@ -87,7 +87,6 @@ export class GitHubClient {
         owner,
         repo,
         pull_number: pullNumber,
-        commit_id: commitId,
         event: reviewEvent,
         body: fallbackBody,
       });
