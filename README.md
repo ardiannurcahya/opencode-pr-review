@@ -50,7 +50,7 @@ Developer Opens PR -> Webhook (<1s) -> Standby Comment ("Analyzing...") -> OpenC
 - **Smart Commit Deduplication**: If multiple commits are pushed in rapid succession, superseded jobs in the queue are automatically bypassed to conserve compute resources.
 - **Asymmetric Authentication**: Authenticates via RS256 JWT using GitHub App private keys, generating short-lived installation access tokens.
 - **Universal and Repository-Specific Prompts**: Provides standard baseline review rules in [`prompts/review.md`](prompts/review.md) with per-repository customization support in `config.yaml`.
-- **Multi-Provider LLM Integration**: Routes repositories to different models (e.g., DeepSeek, GPT-5, Claude) through local OpenCode configuration (`~/.config/opencode/opencode.json`).
+- **Multi-Provider LLM Integration**: Routes repositories to different models (e.g., DeepSeek, GPT-4o, Claude) through local OpenCode configuration (`~/.config/opencode/opencode.json`).
 
 ---
 
@@ -90,7 +90,7 @@ Edit `.env`:
 ```ini
 PORT=8088
 WEBHOOK_SECRET=your_webhook_secret_from_github_app
-GITHUB_APP_ID=4660077
+GITHUB_APP_ID=123456
 GITHUB_PRIVATE_KEY_PATH=./github-app.private-key.pem
 ```
 
@@ -101,11 +101,11 @@ server:
   webhook_secret: "${WEBHOOK_SECRET}"
 
 github:
-  app_id: 4660077
+  app_id: 123456
   private_key_path: "./github-app.private-key.pem"
 
 opencode:
-  default_model: "trade/fireworks/accounts/fireworks/models/deepseek-v4-flash-0731"
+  default_model: "custom_ai/deepseek-ai/deepseek-coder"
   timeout_seconds: 300
 
 repositories:
