@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Self-hosted automated Pull Request code reviewer powered by GitHub App and OpenCode",
   "main": "dist/index.js",
+  "bin": {
+    "opencode-pr-review": "./dist/index.js"
+  },
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",

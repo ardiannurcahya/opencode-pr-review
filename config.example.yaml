@@ -15,8 +15,8 @@ opencode:
   server_password: "${OPENCODE_SERVER_PASSWORD}"
   # Default model (can use custom provider from opencode.json like: custom/claude-sonnet-4-6)
   default_model: "custom/claude-sonnet-4-6"
-  # Default agent (reviewer agent enforces read-only permissions for safety)
-  agent: "reviewer"
+  # Optional: custom agent name from opencode.json (e.g. reviewer). Uses OpenCode default agent if omitted.
+  # agent: "reviewer"
   timeout_seconds: 300
 
 # Git workspaces configuration

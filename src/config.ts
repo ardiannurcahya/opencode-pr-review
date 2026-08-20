@@ -88,7 +88,7 @@ export function loadConfig(customPath?: string): AppConfig {
       agent:
         parsed.opencode?.agent ||
         process.env.OPENCODE_AGENT ||
-        'reviewer',
+        undefined,
       timeout_seconds: parsed.opencode?.timeout_seconds || 300,
     },
     workspace: {

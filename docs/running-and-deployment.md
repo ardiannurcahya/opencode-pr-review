@@ -8,9 +8,9 @@ This guide covers configuring, managing, and deploying the **OpenCode PR Reviewe
 1. [Prerequisites](#1-prerequisites)
 2. [OpenCode Engine Configuration](#2-opencode-engine-configuration)
 3. [Environment Variables and Configuration Files](#3-environment-variables-and-configuration-files)
-4. [Deployment Option 1: systemd Service (Recommended)](#4-deployment-option-1-systemd-service-recommended)
-5. [Deployment Option 2: Docker Compose](#5-deployment-option-2-docker-compose)
-6. [Deployment Option 3: Manual Node.js](#6-deployment-option-3-manual-nodejs)
+4. [Deployment Option 1: NPM Global Package (Recommended)](#4-deployment-option-1-npm-global-package-recommended)
+5. [Deployment Option 2: Prebuilt Docker Container (GHCR)](#5-deployment-option-2-prebuilt-docker-container-ghcr)
+6. [Deployment Option 3: From Source Code](#6-deployment-option-3-from-source-code)
 7. [Service Management and Monitoring Commands](#7-service-management-and-monitoring-commands)
 8. [Configuring and Switching AI Models](#8-configuring-and-switching-ai-models)
 
@@ -136,27 +136,40 @@ repositories:
 
 ---
 
-## 4. Deployment Option 1: systemd Service (Recommended)
+## 4. Deployment Option 1: NPM Global Package (Recommended)
 
-Running as a systemd service provides automatic startup on boot, crash recovery, and unified logging through `journalctl`.
+Installing the published package from the NPM registry provides a simple global executable `opencode-pr-review` with zero build overhead.
 
-### Step 1: Create systemd Unit File
+### Step 1: Install Globally
+```bash
+npm install -g opencode-pr-review
+```
+
+### Step 2: Setup Directory & Configurations
+```bash
+mkdir -p /etc/opencode-pr-review
+cd /etc/opencode-pr-review
+
+# Place your .env, config.yaml, and github-app.private-key.pem here
+```
+
+### Step 3: Create systemd Unit File
 Create `/etc/systemd/system/opencode-pr-review.service`:
 
 ```ini
 [Unit]
-Description=OpenCode AI Pull Request Reviewer Service
+Description=OpenCode AI Pull Request Reviewer Service (NPM)
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/path/to/opencode-pr-review
-ExecStart=/usr/bin/node dist/index.js
+WorkingDirectory=/etc/opencode-pr-review
+ExecStart=/usr/bin/env opencode-pr-review
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
-EnvironmentFile=/path/to/opencode-pr-review/.env
+EnvironmentFile=/etc/opencode-pr-review/.env
 
 StandardOutput=journal
 StandardError=journal
@@ -165,33 +178,42 @@ StandardError=journal
 WantedBy=multi-user.target
 ```
 
-### Step 2: Build, Enable, and Start Service
+### Step 4: Enable and Start Service
 ```bash
-# Build TypeScript artifacts
-npm run build
-
-# Reload systemd, enable service on system boot, and start
 sudo systemctl daemon-reload
 sudo systemctl enable opencode-pr-review
 sudo systemctl start opencode-pr-review
-
-# Check active service status
 sudo systemctl status opencode-pr-review
 ```
 
 ---
 
-## 5. Deployment Option 2: Docker Compose
+## 5. Deployment Option 2: Prebuilt Docker Container (GHCR)
 
-For containerized deployment:
+Run the production container directly from the GitHub Container Registry without needing a Node.js or TypeScript compiler toolchain on the host.
 
-### `docker-compose.yml`:
+### Using Docker CLI:
+```bash
+docker run -d \
+  --name opencode-pr-reviewer \
+  --restart unless-stopped \
+  -p 8088:8088 \
+  --env-file /etc/opencode-pr-review/.env \
+  -v /etc/opencode-pr-review/config.yaml:/app/config.yaml:ro \
+  -v /etc/opencode-pr-review/github-app.private-key.pem:/app/github-app.private-key.pem:ro \
+  -v /var/lib/opencode-pr-review/data:/app/data \
+  -v /var/lib/opencode-pr-review/workspaces:/app/workspaces \
+  -v ~/.config/opencode:/root/.config/opencode:ro \
+  ghcr.io/ardiannurcahya/opencode-pr-review:latest
+```
+
+### Using Docker Compose (`docker-compose.yml`):
 ```yaml
 version: '3.8'
 
 services:
   opencode-pr-reviewer:
-    build: .
+    image: ghcr.io/ardiannurcahya/opencode-pr-review:latest
     container_name: opencode-pr-reviewer
     restart: unless-stopped
     ports:
@@ -206,22 +228,32 @@ services:
       - ~/.config/opencode:/root/.config/opencode:ro
 ```
 
-Run container in background:
+Run in background:
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 ---
 
-## 6. Deployment Option 3: Manual Node.js
+## 6. Deployment Option 3: From Source Code
 
+For active development or custom modifications:
+
+### Step 1: Clone and Build
 ```bash
-# Development Mode
-npm run dev
-
-# Production Build and Run
+git clone https://github.com/ardiannurcahya/opencode-pr-review.git /opt/opencode-pr-review
+cd /opt/opencode-pr-review
+npm install
 npm run build
+```
+
+### Step 2: Run Service
+```bash
+# Direct run
 npm start
+
+# Or via Development Watcher
+npm run dev
 ```
 
 ---
