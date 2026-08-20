@@ -25,7 +25,7 @@
 
 ## Overview
 
-**OpenCode PR Reviewer** is a self-hosted automated Pull Request review service. It integrates with GitHub using a **GitHub App**, listens for Pull Request events in real-time, performs static and semantic analysis with the **OpenCode AI engine**, and publishes inline comments utilizing native **GitHub Alert syntax**.
+**OpenCode PR Reviewer** is a self-hosted automated Pull Request review service. Use a different AI agent, model, skills, and tooling setup for every repository. It integrates with GitHub using a **GitHub App**, listens for Pull Request events in real-time, performs static and semantic analysis with the **OpenCode AI engine**, and publishes inline comments utilizing native **GitHub Alert syntax**.
 
 ```text
 Developer Opens PR -> Webhook (<1s) -> Standby Comment ("Analyzing...") -> OpenCode Review -> Clean Review / Alert Callouts
