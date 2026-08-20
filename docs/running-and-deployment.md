@@ -1,26 +1,26 @@
-# 🚀 Running & Deployment Guide
+# Running and Deployment Guide
 
-This guide covers running, managing, and deploying the **OpenCode PR Reviewer** service in production using **systemd**, **Docker Compose**, or standalone Node.js.
+This guide covers configuring, managing, and deploying the **OpenCode PR Reviewer** service in production using **systemd**, **Docker Compose**, or standalone Node.js.
 
 ---
 
 ## Table of Contents
 1. [Prerequisites](#1-prerequisites)
 2. [OpenCode Engine Configuration](#2-opencode-engine-configuration)
-3. [Environment Variables & Configuration Files](#3-environment-variables--configuration-files)
-4. [Deployment Option 1: systemd Service (Recommended on Linux VPS)](#4-deployment-option-1-systemd-service-recommended)
+3. [Environment Variables and Configuration Files](#3-environment-variables-and-configuration-files)
+4. [Deployment Option 1: systemd Service (Recommended)](#4-deployment-option-1-systemd-service-recommended)
 5. [Deployment Option 2: Docker Compose](#5-deployment-option-2-docker-compose)
 6. [Deployment Option 3: Manual Node.js](#6-deployment-option-3-manual-nodejs)
-7. [Service Management & Monitoring Commands](#7-service-management--monitoring-commands)
+7. [Service Management and Monitoring Commands](#7-service-management-and-monitoring-commands)
 8. [Configuring and Switching AI Models](#8-configuring-and-switching-ai-models)
 
 ---
 
 ## 1. Prerequisites
 
-Ensure the following are installed on your host system:
-- **Node.js**: `v20.0.0` or higher (`v22+` recommended).
-- **Git**: Installed and configured in system `PATH`.
+Ensure the following dependencies are installed on the host system:
+- **Node.js**: Version 20.0.0 or higher (version 22+ recommended).
+- **Git**: Installed and available in system `PATH`.
 - **OpenCode CLI**: Installed globally:
   ```bash
   npm install -g opencode-ai
@@ -30,7 +30,7 @@ Ensure the following are installed on your host system:
 
 ## 2. OpenCode Engine Configuration
 
-The reviewer leverages your existing OpenCode authentication and custom OpenAI-compatible providers configured in `~/.config/opencode/opencode.json`.
+The reviewer utilizes local OpenCode configuration and custom OpenAI-compatible providers defined in `~/.config/opencode/opencode.json`.
 
 ### Example Provider Setup in `~/.config/opencode/opencode.json`:
 ```json
@@ -68,14 +68,14 @@ The reviewer leverages your existing OpenCode authentication and custom OpenAI-c
 }
 ```
 
-Verify your model works directly in terminal:
+Verify model connectivity directly in terminal:
 ```bash
 opencode run --model trade/fireworks/accounts/fireworks/models/deepseek-v4-flash-0731 "ping"
 ```
 
 ---
 
-## 3. Environment Variables & Configuration Files
+## 3. Environment Variables and Configuration Files
 
 ### 1. `.env` File
 Create `.env` from template:
@@ -138,7 +138,7 @@ repositories:
 
 ## 4. Deployment Option 1: systemd Service (Recommended)
 
-Running as a systemd service ensures automatic restart on boot, crash recovery, and centralized logging via `journalctl`.
+Running as a systemd service provides automatic startup on boot, crash recovery, and unified logging through `journalctl`.
 
 ### Step 1: Create systemd Unit File
 Create `/etc/systemd/system/opencode-pr-review.service`:
@@ -158,7 +158,6 @@ RestartSec=5
 Environment=NODE_ENV=production
 EnvironmentFile=/path/to/opencode-pr-review/.env
 
-# Standard output and error to systemd journal
 StandardOutput=journal
 StandardError=journal
 
@@ -166,17 +165,17 @@ StandardError=journal
 WantedBy=multi-user.target
 ```
 
-### Step 2: Build, Enable & Start Service
+### Step 2: Build, Enable, and Start Service
 ```bash
-# Build TypeScript code
+# Build TypeScript artifacts
 npm run build
 
-# Reload systemd, enable service on boot, and start
+# Reload systemd, enable service on system boot, and start
 sudo systemctl daemon-reload
 sudo systemctl enable opencode-pr-review
 sudo systemctl start opencode-pr-review
 
-# Check status
+# Check active service status
 sudo systemctl status opencode-pr-review
 ```
 
@@ -184,7 +183,7 @@ sudo systemctl status opencode-pr-review
 
 ## 5. Deployment Option 2: Docker Compose
 
-If you prefer running in containerized environments:
+For containerized deployment:
 
 ### `docker-compose.yml`:
 ```yaml
@@ -217,24 +216,24 @@ docker compose up -d --build
 ## 6. Deployment Option 3: Manual Node.js
 
 ```bash
-# Development Mode (Hot-reload)
+# Development Mode
 npm run dev
 
-# Production Mode
+# Production Build and Run
 npm run build
 npm start
 ```
 
 ---
 
-## 7. Service Management & Monitoring Commands
+## 7. Service Management and Monitoring Commands
 
 ### View Live Execution Logs:
 ```bash
 # Follow logs in real-time
 sudo journalctl -u opencode-pr-review -f
 
-# View last 50 lines
+# View last 50 lines without paging
 sudo journalctl -u opencode-pr-review -n 50 --no-pager
 ```
 
@@ -257,12 +256,12 @@ curl -s http://localhost:8088/health | jq .
 
 ## 8. Configuring and Switching AI Models
 
-To switch models, simply edit `opencode.default_model` or the per-repo `model` field in `config.yaml` and restart the service:
+To switch models, update `opencode.default_model` or the per-repository `model` parameter in `config.yaml` and restart the service:
 
 ```bash
 # Edit config.yaml
 # Change: default_model: "trade/cx/gpt-5.6-luna"
 
-# Restart service to apply
+# Restart service to apply changes
 sudo systemctl restart opencode-pr-review
 ```

@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🤖 OpenCode AI PR Reviewer
+# OpenCode AI PR Reviewer
 
-### *Automated, Production-Grade AI Code Reviewer for GitHub Pull Requests*
+### Automated, Production-Grade AI Code Reviewer for GitHub Pull Requests
 
 [![Node.js](https://img.shields.io/badge/Node.js-v20%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -11,9 +11,9 @@
 [![SQLite](https://img.shields.io/badge/SQLite-Zero%20Dependency-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://sqlite.org/)
 
 <p align="center">
-  <b>Instant Standby Feedback</b> • 
-  <b>GitHub Native Alert Badges</b> • 
-  <b>Smart Commit Deduplication</b> • 
+  <b>Instant Standby Feedback</b> | 
+  <b>GitHub Native Alert Badges</b> | 
+  <b>Smart Commit Deduplication</b> | 
   <b>Zero Noise on Clean PRs</b>
 </p>
 
@@ -21,40 +21,40 @@
 
 </div>
 
-## 📖 Overview
+## Overview
 
-**OpenCode PR Reviewer** is a lightweight, self-hosted automated Pull Request review system. It connects directly to your GitHub organization using a **GitHub App**, listens to PR events in real-time, conducts deep static and semantic analysis with **OpenCode AI**, and posts constructive inline comments with native **GitHub Alert Badges**.
+**OpenCode PR Reviewer** is a self-hosted automated Pull Request review service. It integrates with GitHub using a **GitHub App**, listens for Pull Request events in real-time, performs static and semantic analysis with the **OpenCode AI engine**, and publishes inline comments utilizing native **GitHub Alert syntax**.
 
-```
-Developer Opens PR ──> Webhook (<1s) ──> Standby Comment ("⏳ Analyzing...") ──> OpenCode Review ──> Clean Review / [!CAUTION] Alerts
+```text
+Developer Opens PR -> Webhook (<1s) -> Standby Comment ("Analyzing...") -> OpenCode Review -> Clean Review / Alert Callouts
 ```
 
 ---
 
-## 📚 Complete Documentation Guides
+## Documentation Index
 
-| Guide | Description |
+| Document | Description |
 | :--- | :--- |
-| 🔐 **[GitHub App Creation & Setup](docs/github-app-setup.md)** | Step-by-step instructions on creating the GitHub App, configuring permissions, generating private keys, and repository installation. |
-| 🌐 **[Custom Domain & Reverse Proxy](docs/domain-and-reverse-proxy.md)** | Guide for DNS A-record setup, Caddy (auto SSL), Nginx + Certbot, and Cloudflare Tunnels. |
-| 🚀 **[Running & Deployment Guide](docs/running-and-deployment.md)** | Production deployment using systemd services, Docker Compose, logging, and model switching. |
-| 🏛️ **[Architecture & Workflow Deep Dive](docs/architecture-and-workflow.md)** | Technical breakdown with Mermaid flowcharts, sequence diagrams, NDJSON stream parsing, and queue deduplication. |
+| **[GitHub App Creation and Setup](docs/github-app-setup.md)** | Step-by-step guide for creating a GitHub App, configuring permissions, generating private keys, and repository installation. |
+| **[Custom Domain and Reverse Proxy](docs/domain-and-reverse-proxy.md)** | Network configuration guide covering DNS A-records, Caddy (automated TLS), Nginx with Certbot, and Cloudflare Tunnels. |
+| **[Running and Deployment Guide](docs/running-and-deployment.md)** | Production operations guide covering systemd services, Docker Compose, logging, and model configuration. |
+| **[Architecture and Workflow Specification](docs/architecture-and-workflow.md)** | Technical specification including Mermaid sequence diagrams, queue deduplication, NDJSON stream parsing, and subsystem details. |
 
 ---
 
-## ✨ Key Features
+## Core Features
 
-- **⚡ Instant Standby Feedback**: Posts an initial `⏳ AI Code Reviewer is analyzing...` comment within 2 seconds of PR creation, then automatically removes it once the official review is published.
-- **🏷️ GitHub Native Alert Formatting**: Employs GitHub markdown callouts (`> [!CAUTION]`, `> [!WARNING]`, `> [!NOTE]`) for maximum visual clarity on code diffs.
-- **🔇 Zero Conversation Clutter**: Clean PRs receive an **`APPROVE`** verdict with a concise summary and **zero inline threads**, eliminating repetitive "Resolve conversation" clicks.
-- **🧠 Smart Commit Deduplication**: If a developer pushes multiple commits rapidly, outdated review jobs are automatically superseded, saving AI token compute.
-- **🛡️ Asymmetric Security**: Uses short-lived GitHub App installation tokens (JWT) rather than static Personal Access Tokens.
-- **🧩 Universal & Custom Prompts**: Global standardized review rules in [`prompts/review.md`](prompts/review.md) with per-repository customization support.
-- **🔌 Multi-Provider LLM Engine**: Seamlessly route different repositories to different models (e.g. DeepSeek V4 Flash, GPT-5.6, Claude) via your local OpenCode configuration (`~/.config/opencode/opencode.json`).
+- **Instant Standby Feedback**: Posts an immediate acknowledgment comment upon receiving a PR event, and automatically deletes it when the official review is published.
+- **GitHub Native Alert Formatting**: Formats review findings using standard GitHub markdown callouts (`[!CAUTION]`, `[!WARNING]`, `[!NOTE]`) for diff clarity.
+- **Zero Review Noise on Clean PRs**: Approved PRs receive a clean summary without generating inline conversation threads, preventing repetitive conversation resolution steps.
+- **Smart Commit Deduplication**: If multiple commits are pushed in rapid succession, superseded jobs in the queue are automatically bypassed to conserve compute resources.
+- **Asymmetric Authentication**: Authenticates via RS256 JWT using GitHub App private keys, generating short-lived installation access tokens.
+- **Universal and Repository-Specific Prompts**: Provides standard baseline review rules in [`prompts/review.md`](prompts/review.md) with per-repository customization support in `config.yaml`.
+- **Multi-Provider LLM Integration**: Routes repositories to different models (e.g., DeepSeek, GPT-5, Claude) through local OpenCode configuration (`~/.config/opencode/opencode.json`).
 
 ---
 
-## 🏗️ Architecture
+## Architecture Overview
 
 ```mermaid
 flowchart LR
@@ -66,21 +66,21 @@ flowchart LR
     Worker -->|2. Git Checkout| Workspace[Isolated Workspace]
     Worker -->|3. Run Review| Engine[OpenCode Engine]
     Engine -->|4. NDJSON Stream| Parser[Stream Parser]
-    Parser -->|5. Post Review & Clean Standby| GH
+    Parser -->|5. Post Review and Clean Standby| GH
 ```
 
 ---
 
-## ⚡ 3-Minute Quick Start
+## Quick Start
 
-### 1. Clone and Install Dependencies
+### 1. Clone Repository and Install Dependencies
 ```bash
 git clone https://github.com/ardiannurcahya/opencode-pr-review.git
 cd opencode-pr-review
 npm install
 ```
 
-### 2. Configure Environment & App Credentials
+### 2. Configure Environment and Credentials
 ```bash
 cp .env.example .env
 cp config.example.yaml config.yaml
@@ -122,36 +122,36 @@ npm start
 
 ---
 
-## 📊 Sample Review Outputs
+## Review Output Format
 
-### 1. Clean PR Output (`APPROVE`)
+### 1. Approved Pull Request (`APPROVE`)
 ```markdown
-## 🤖 AI Code Review Summary
+## AI Code Review Summary
 
-**Verdict**: ✅ `APPROVE`
+**Verdict**: `APPROVE`
 
-### 📝 Summary
-• Feature implementation is robust and follows repository standards.
-• No security vulnerabilities, resource leaks, or breaking changes identified.
-• Safe to merge.
+### Summary
+- Feature implementation is robust and follows repository standards.
+- No security vulnerabilities, resource leaks, or breaking changes identified.
+- Safe to merge.
 
-**Status**: ✨ Clean! Code is approved and ready to merge.
+**Status**: Clean! Code is approved and ready to merge.
 ```
 
-### 2. Critical Security Defect Output (`REQUEST_CHANGES`)
+### 2. Critical Security Finding (`REQUEST_CHANGES`)
 ```markdown
-## 🤖 AI Code Review Summary
+## AI Code Review Summary
 
-**Verdict**: ❌ `REQUEST_CHANGES`
+**Verdict**: `REQUEST_CHANGES`
 
-### 📝 Summary
-• Hardcoded production secret identified in source code.
-• Raw SQL string concatenation creates critical SQL Injection risk. Do not merge.
+### Summary
+- Hardcoded production secret identified in source code.
+- Raw SQL string concatenation creates critical SQL Injection risk. Do not merge.
 
-**Blocking Issues**: 🚨 2 critical issue(s) identified. Must be resolved before merge.
+**Blocking Issues**: 2 critical issue(s) identified. Must be resolved before merge.
 ```
 
-**Inline Comment Example on Diff**:
+**Inline Comment Example**:
 ```markdown
 > [!CAUTION]
 > **CRITICAL**: SQL injection vulnerability: raw string concatenation of `username` allows authentication bypass. Replace with parameterized query `db.QueryRow("SELECT ... WHERE user = ?", username)`.
@@ -159,38 +159,38 @@ npm start
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 opencode-pr-review/
-├── docs/                                # Dedicated Documentation Guides
-│   ├── github-app-setup.md              # GitHub App creation & installation
-│   ├── domain-and-reverse-proxy.md      # DNS, Caddy, Nginx & SSL setup
+├── docs/                                # Detailed technical guides
+│   ├── github-app-setup.md              # GitHub App creation and installation
+│   ├── domain-and-reverse-proxy.md      # DNS, Caddy, Nginx, and TLS setup
 │   ├── running-and-deployment.md        # systemd, Docker, and logging
-│   └── architecture-and-workflow.md     # Deep-dive architecture & sequence
-├── prompts/                             # Review Prompts
+│   └── architecture-and-workflow.md     # Architecture and sequence specifications
+├── prompts/                             # Review prompt templates
 │   ├── review.md                        # Master pragmatic review prompt
-│   └── examples/                        # Specialized prompts (backend/frontend/OSS)
-├── src/                                 # TypeScript Source Code
-│   ├── index.ts                         # Webhook server & health endpoints
-│   ├── config.ts                        # YAML & ENV configuration loader
-│   ├── github/                          # GitHub App JWT & REST Client
-│   ├── queue/                           # SQLite Queue & Deduplication
-│   ├── reviewer/                        # OpenCode Runner & NDJSON Parser
-│   ├── worker/                          # Background Review Worker Loop
-│   └── workspace/                       # Git Clone & Branch Checkout Manager
-├── config.example.yaml                  # Configuration Template
-├── docker-compose.yml                   # Docker Deployment Definition
-├── Dockerfile                           # Container Buildfile
-├── package.json                         # Project Metadata & Scripts
-└── test-audit.mjs                       # Automated Audit Test Suite
+│   └── examples/                        # Specialized prompts (backend, frontend, OSS)
+├── src/                                 # TypeScript source code
+│   ├── index.ts                         # Webhook server and health endpoints
+│   ├── config.ts                        # YAML and environment configuration loader
+│   ├── github/                          # GitHub App JWT and REST API client
+│   ├── queue/                           # SQLite queue and deduplication engine
+│   ├── reviewer/                        # OpenCode runner and NDJSON stream parser
+│   ├── worker/                          # Background review worker loop
+│   └── workspace/                       # Git repository and workspace manager
+├── config.example.yaml                  # Configuration template
+├── docker-compose.yml                   # Docker Compose definition
+├── Dockerfile                           # Container image definition
+├── package.json                         # Project dependencies and build scripts
+└── test-audit.mjs                       # Automated test suite
 ```
 
 ---
 
-## 🧪 Testing
+## Testing
 
-Run the built-in test suite to verify queue deduplication, HMAC verification, NDJSON stream parsing, and prompt templates:
+Run the automated test suite to verify queue deduplication, HMAC verification, NDJSON stream parsing, and prompt templates:
 
 ```bash
 npm test
@@ -198,6 +198,6 @@ npm test
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).

@@ -1,4 +1,4 @@
-# 🏛️ Architecture & Workflow Deep Dive
+# Architecture and Workflow Specification
 
 This document details the internal architecture, event lifecycle, and subsystems of the **OpenCode PR Reviewer**.
 
@@ -8,7 +8,7 @@ This document details the internal architecture, event lifecycle, and subsystems
 
 ```mermaid
 flowchart TD
-    subgraph GitHub["GitHub Ecosystem"]
+    subgraph GitHub["GitHub Platform"]
         Dev[Developer] -->|Opens / Pushes PR| GH[GitHub API & Webhooks]
         GH -->|HMAC Webhook Event| Caddy[Caddy / Reverse Proxy]
         AppToken[GitHub App Auth] -->|Installation Token| GH
@@ -30,7 +30,7 @@ flowchart TD
         OpenCodeEngine -->|NDJSON Event Stream| StreamParser[Stream & JSON Parser]
         StreamParser -->|Structured Review Result| Formatter[GitHub Alert Formatter]
 
-        Formatter -->|Step 5: Post Inline Comments & Delete Standby| ReviewPoster[GitHub REST Client]
+        Formatter -->|Step 5: Post Review & Delete Standby| ReviewPoster[GitHub REST Client]
     end
 
     ReviewPoster -->|Official Review + Alert Badges| GH
@@ -54,7 +54,7 @@ sequenceDiagram
     Developer->>GitHub: Open PR / Push new commit
     GitHub->>Server: POST /webhook/github (X-Hub-Signature-256)
     Server->>Server: Verify HMAC SHA-256 Signature
-    Server->>DB: Enqueue Job (repository, PR#, HEAD SHA)
+    Server->>DB: Enqueue Job (repository, PR number, HEAD SHA)
     Server-->>GitHub: HTTP 200 OK (Job Enqueued)
 
     loop Worker Loop (Every 3 seconds)
@@ -65,14 +65,14 @@ sequenceDiagram
             Worker->>DB: Mark status = 'superseded' (Skip execution)
         else Is Active Job
             Worker->>Client: Generate Installation Token (JWT)
-            Worker->>Client: Post Instant Standby Comment ("⏳ Analyzing...")
+            Worker->>Client: Post Instant Standby Comment ("Analyzing...")
             Worker->>Worker: Prepare isolated Git Workspace (fetch origin/main & checkout HEAD)
-            Worker->>Engine: Run opencode review with prompts/review.md
+            Worker->>Engine: Run OpenCode review with prompts/review.md
             Engine-->>Worker: Stream NDJSON output (step_start, tool_use, text)
             Worker->>Worker: Parse balanced JSON review payload
             
             alt Verdict is APPROVE
-                Worker->>Client: Submit Review (APPROVE, Clean Summary, 0 noise threads)
+                Worker->>Client: Submit Review (APPROVE, Clean Summary, 0 inline threads)
                 Worker->>Client: Auto-delete standby comment
             else Verdict is REQUEST_CHANGES
                 Worker->>Client: Submit Review (REQUEST_CHANGES, [!CAUTION] Inline Comments)
@@ -89,43 +89,43 @@ sequenceDiagram
 ## 3. Core Subsystems
 
 ### 3.1. Webhook Signature Verification (`src/github/webhook.ts`)
-Every incoming payload from GitHub is verified using HMAC SHA-256 against `WEBHOOK_SECRET`:
-- Raw request body buffers are captured before JSON serialization.
-- Timing-safe buffer comparison (`crypto.timingSafeEqual`) prevents timing attack vulnerabilities.
-- Non-relevant PR actions (e.g. `labeled`, `assigned`, `closed`) are filtered out immediately.
+Incoming payloads from GitHub are verified using HMAC SHA-256 against `WEBHOOK_SECRET`:
+- Raw request body buffers are captured before JSON parsing.
+- Constant-time buffer comparison (`crypto.timingSafeEqual`) prevents timing attack vulnerabilities.
+- Non-actionable PR events (such as `labeled`, `assigned`, `closed`) are filtered out immediately.
 
-### 3.2. SQLite Queue & Smart Deduplication (`src/queue/queue.ts`)
-- **Zero Heavy Dependencies**: Powered by Node.js native experimental SQLite or SQLite3.
-- **Smart Deduplication**: If a developer pushes 3 commits rapidly (`commit A` -> `commit B` -> `commit C`), the worker automatically identifies that `commit A` and `commit B` are superseded by `commit C`, marking them skipped and saving valuable LLM compute.
+### 3.2. SQLite Queue and Smart Deduplication (`src/queue/queue.ts`)
+- **Zero Heavy Dependencies**: Implemented using Node.js experimental SQLite module or SQLite3.
+- **Smart Deduplication**: When multiple commits are pushed rapidly to the same PR, older queued jobs are marked as superseded and bypassed, conserving LLM token capacity.
 
 ### 3.3. GitHub App Token Management (`src/github/auth.ts`)
-- The service signs an RS256 JWT using the GitHub App's private key (`github-app.private-key.pem`).
-- The JWT is exchanged for a short-lived **Installation Access Token** (valid for 1 hour).
-- No long-lived Personal Access Tokens (PAT) are stored in the codebase.
+- The service generates an RS256 JWT signed with the GitHub App private key (`github-app.private-key.pem`).
+- The JWT is exchanged with GitHub for a short-lived **Installation Access Token** (valid for 1 hour).
+- Eliminates the need for long-lived Personal Access Tokens (PAT).
 
 ### 3.4. Git Workspace Isolation (`src/workspace/git.ts`)
-- Repositories are cloned into isolated directories (`workspaces/<owner>/<repo>/pr-<number>`).
-- Re-fetches the latest target base branch (`origin/main`) and resets the working tree cleanly before running AI tools.
+- Repositories are cloned into dedicated directories (`workspaces/<owner>/<repo>/pr-<number>`).
+- Re-fetches the latest target base branch (`origin/main`) and resets the working tree cleanly prior to analysis.
 
 ### 3.5. OpenCode NDJSON Stream Parser (`src/reviewer/parser.ts`)
 OpenCode outputs a structured event stream (`step_start`, `tool_use`, `step_finish`, `text`). The parser:
-1. Isolates the **trailing contiguous block of `text` events** (the final model answer, filtering out internal agent narration).
-2. Uses a **balanced curly-brace parser** (`findBalancedJsonObject`) to extract the review payload without breaking on nested markdown code blocks.
-3. Normalizes verdicts (`PASS` / `APPROVE`, `FAIL` / `REQUEST_CHANGES`).
+1. Isolates the **trailing contiguous block of `text` events** (the final model output, excluding intermediate agent thoughts).
+2. Applies a **balanced brace parser** (`findBalancedJsonObject`) to extract the JSON payload without truncation from nested markdown code blocks.
+3. Normalizes verdicts (`PASS` to `APPROVE`, `FAIL` to `REQUEST_CHANGES`).
 
 ### 3.6. Standby Comment Lifecycle (`src/worker/worker.ts` & `src/github/client.ts`)
-1. **Instant Feedback (< 2 seconds)**:
+1. **Immediate Acknowledgment**:
    ```markdown
-   > ⏳ **AI Code Reviewer** is currently analyzing your code changes...
-   > *Estimated completion time: ~30–60 seconds.*
+   > **AI Code Reviewer** is currently analyzing your code changes...
+   > *Estimated completion time: ~30-60 seconds.*
    ```
-2. **Clean Auto-Deletion**:
-   When the review completes, the temporary standby comment is cleanly deleted, leaving a pristine PR conversation history.
-3. **Orphan Sweeper**:
-   On every new run, stale standby comments from previously interrupted/crashed runs are automatically cleaned up.
+2. **Automated Cleanup**:
+   Upon publishing the official review, the standby comment is deleted to keep the PR timeline clean.
+3. **Orphan Cleanup**:
+   Stale standby comments from interrupted previous runs are swept and removed on each execution cycle.
 
 ### 3.7. GitHub Native Alert Formatting (`src/github/client.ts`)
-Review comments leverage GitHub native Markdown alert syntax:
-- 🔴 `[!CAUTION]` for **CRITICAL** security flaws and severe bugs.
-- 🟡 `[!WARNING]` for **WARNING** logic bugs.
-- 🔵 `[!NOTE]` for **INFO** suggestions.
+Review comments utilize GitHub markdown callout formatting:
+- `[!CAUTION]` for **CRITICAL** security vulnerabilities and fatal bugs.
+- `[!WARNING]` for **WARNING** logic issues.
+- `[!NOTE]` for **INFO** suggestions.
