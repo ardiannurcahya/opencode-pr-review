@@ -1,0 +1,40 @@
+services:
+  opencode-server:
+    image: node:22-bookworm-slim
+    container_name: opencode-server
+    restart: unless-stopped
+    command: >
+      sh -c "npm install -g opencode-ai &&
+             OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD}
+             opencode serve --hostname 0.0.0.0 --port 4096"
+    environment:
+      - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD}
+    ports:
+      - "127.0.0.1:4096:4096"
+    volumes:
+      - shared_workspaces:/workspaces
+      - ~/.config/opencode:/root/.config/opencode
+      - ~/.local/share/opencode:/root/.local/share/opencode
+
+  reviewer-service:
+    build: .
+    container_name: pr-reviewer-service
+    restart: unless-stopped
+    depends_on:
+      - opencode-server
+    environment:
+      - PORT=8080
+      - CONFIG_PATH=/app/config.yaml
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - OPENCODE_SERVER_URL=http://opencode-server:4096
+      - OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./github-app.private-key.pem:/app/github-app.private-key.pem:ro
+      - ./data:/app/data
+      - shared_workspaces:/app/workspaces
+
+volumes:
+  shared_workspaces:
