@@ -1,0 +1,36 @@
+{
+  "name": "opencode-pr-review",
+  "version": "1.0.0",
+  "description": "Self-hosted automated Pull Request code reviewer powered by GitHub App and OpenCode",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit",
+    "test": "tsc && node test-audit.mjs"
+  },
+  "keywords": [
+    "opencode",
+    "github-app",
+    "code-review",
+    "pr-reviewer",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/auth-app": "^7.1.4",
+    "@octokit/rest": "^21.1.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

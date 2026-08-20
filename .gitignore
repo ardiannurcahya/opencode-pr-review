@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Local databases & workspaces
+data/
+workspaces/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Secrets and credentials
+.env
+*.pem
+*.key
+config.yaml
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
