@@ -178,10 +178,20 @@ export class GitHubClient {
 
     summaryBody += `### 📝 Summary\n${reviewResult.summary}\n\n`;
 
-    if (totalFindingsCount > 0) {
-      summaryBody += `**Total Findings**: 🔍 ${totalFindingsCount} actionable issue(s) identified.\n`;
+    if (reviewEvent === 'APPROVE') {
+      if (totalFindingsCount > 0) {
+        summaryBody += `**Advisory Notes**: 💡 ${totalFindingsCount} non-blocking suggestion(s) provided. Safe to merge!\n`;
+      } else {
+        summaryBody += `**Status**: ✨ Clean! All automated checks passed without issues. Ready to merge!\n`;
+      }
+    } else if (reviewEvent === 'REQUEST_CHANGES') {
+      summaryBody += `**Blocking Issues**: 🚨 ${totalFindingsCount} critical/blocking issue(s) identified. Must be resolved before merge.\n`;
     } else {
-      summaryBody += `**Total Findings**: ✨ No actionable issues identified. Code looks good!\n`;
+      if (totalFindingsCount > 0) {
+        summaryBody += `**Feedback**: 🔍 ${totalFindingsCount} point(s) of feedback provided for discussion.\n`;
+      } else {
+        summaryBody += `**Status**: 💬 Review notes provided for consideration.\n`;
+      }
     }
 
     // If there are general/file-level findings without line numbers, append them to summary
