@@ -11,6 +11,7 @@ export interface RepoConfig {
   prompt_file?: string;
   base_branch?: string;
   model?: string;
+  agent?: string;
   max_findings?: number;
   custom_prompt?: string;
 }
@@ -28,6 +29,7 @@ export interface AppConfig {
     server_url?: string;
     server_password?: string;
     default_model: string;
+    agent?: string;
     timeout_seconds: number;
   };
   workspace: {
@@ -83,6 +85,10 @@ export function loadConfig(customPath?: string): AppConfig {
         parsed.opencode?.default_model ||
         process.env.OPENCODE_DEFAULT_MODEL ||
         'anthropic/claude-sonnet-4-5',
+      agent:
+        parsed.opencode?.agent ||
+        process.env.OPENCODE_AGENT ||
+        'reviewer',
       timeout_seconds: parsed.opencode?.timeout_seconds || 300,
     },
     workspace: {
