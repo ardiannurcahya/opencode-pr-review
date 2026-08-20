@@ -18,8 +18,23 @@
     "pr-reviewer",
     "ai"
   ],
-  "author": "",
+  "author": "Ardian Nurcahya",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ardiannurcahya/opencode-pr-review.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ardiannurcahya/opencode-pr-review/issues"
+  },
+  "homepage": "https://github.com/ardiannurcahya/opencode-pr-review#readme",
+  "files": [
+    "dist",
+    "prompts",
+    "config.example.yaml",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@octokit/auth-app": "^7.1.4",
     "@octokit/rest": "^21.1.1",
