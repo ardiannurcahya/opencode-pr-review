@@ -3,7 +3,7 @@ export type ReviewVerdict = 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
 
 export interface ReviewFinding {
   file_path: string;
-  line_number: number;
+  line_number?: number;
   severity: ReviewSeverity;
   comment: string;
 }
@@ -12,6 +12,103 @@ export interface ReviewResult {
   summary: string;
   verdict: ReviewVerdict;
   findings: ReviewFinding[];
+}
+
+/**
+ * Extract the final assistant text response from OpenCode event-stream output (NDJSON),
+ * collecting only the trailing contiguous run of text events (ignoring intermediate step narrations).
+ */
+function extractOpenCodeOutput(raw: string): string {
+  if (!raw || !raw.includes('{"type":')) {
+    return raw;
+  }
+
+  const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean);
+  const trailingTextParts: string[] = [];
+  let collectingTrailing = false;
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const obj = JSON.parse(lines[i]);
+      if (obj.type === 'text' && obj.part && typeof obj.part.text === 'string') {
+        trailingTextParts.unshift(obj.part.text);
+        collectingTrailing = true;
+      } else if (collectingTrailing) {
+        // Encountered non-text event (e.g. step_finish, tool_use) before this text run: stop
+        break;
+      }
+    } catch {
+      if (collectingTrailing) {
+        break;
+      }
+    }
+  }
+
+  if (trailingTextParts.length > 0) {
+    const combined = trailingTextParts.join('').trim();
+    if (combined) return combined;
+  }
+
+  return raw;
+}
+
+/**
+ * Robustly find and parse the review JSON object within a string,
+ * scanning for the most complete candidate object (prioritizing objects with findings and summaries).
+ */
+function findBalancedJsonObject(str: string): any | null {
+  let startIndex = -1;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  const candidates: any[] = [];
+
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escape = true;
+      continue;
+    }
+
+    if (char === '"' && !escape) {
+      inString = !inString;
+      continue;
+    }
+
+    if (!inString) {
+      if (char === '{') {
+        if (depth === 0) startIndex = i;
+        depth++;
+      } else if (char === '}') {
+        depth--;
+        if (depth === 0 && startIndex !== -1) {
+          const candidateStr = str.substring(startIndex, i + 1);
+          try {
+            const parsed = JSON.parse(candidateStr);
+            if (isValidReviewResult(parsed)) {
+              candidates.push(parsed);
+            }
+          } catch {}
+          startIndex = -1;
+        }
+      }
+    }
+  }
+
+  if (candidates.length === 0) return null;
+
+  // Prioritize candidates with findings, otherwise take the last valid candidate
+  const withFindings = candidates.find(
+    (c) => (Array.isArray(c.findings) && c.findings.length > 0) || (Array.isArray(c.issues) && c.issues.length > 0)
+  );
+
+  return withFindings || candidates[candidates.length - 1];
 }
 
 export function parseReviewResult(rawOutput: string): ReviewResult {
@@ -23,76 +120,82 @@ export function parseReviewResult(rawOutput: string): ReviewResult {
     };
   }
 
-  // 1. Try direct JSON parsing
+  // 0. Extract text from OpenCode NDJSON stream if present
+  const cleanedText = extractOpenCodeOutput(rawOutput.trim());
+
+  // 1. Direct JSON parse
   try {
-    const direct = JSON.parse(rawOutput.trim());
+    const direct = JSON.parse(cleanedText);
     if (isValidReviewResult(direct)) {
       return normalizeReviewResult(direct);
     }
   } catch {}
 
-  // 2. Try extracting from markdown code block ```json ... ``` or ``` ... ```
-  const codeBlockMatch = rawOutput.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (codeBlockMatch && codeBlockMatch[1]) {
-    try {
-      const parsed = JSON.parse(codeBlockMatch[1].trim());
-      if (isValidReviewResult(parsed)) {
-        return normalizeReviewResult(parsed);
-      }
-    } catch {}
+  // 2. Balanced curly brace extraction (handles markdown blocks, nested code fences, conversational lead-in)
+  const balanced = findBalancedJsonObject(cleanedText);
+  if (balanced) {
+    return normalizeReviewResult(balanced);
   }
 
-  // 3. Try finding largest JSON object substring with curly braces { ... }
-  const firstBrace = rawOutput.indexOf('{');
-  const lastBrace = rawOutput.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    try {
-      const substring = rawOutput.substring(firstBrace, lastBrace + 1);
-      const parsed = JSON.parse(substring);
-      if (isValidReviewResult(parsed)) {
-        return normalizeReviewResult(parsed);
-      }
-    } catch {}
-  }
-
-  // 4. Fallback: return raw output as summary comment
+  // 3. Fallback: return cleaned output as summary comment
   return {
-    summary: rawOutput.trim(),
+    summary: cleanedText,
     verdict: 'COMMENT',
     findings: [],
   };
 }
 
 function isValidReviewResult(obj: any): boolean {
-  return (
-    obj &&
-    typeof obj === 'object' &&
-    (typeof obj.summary === 'string' || Array.isArray(obj.findings))
-  );
+  if (!obj || typeof obj !== 'object') return false;
+
+  const hasSummary = typeof obj.summary === 'string' && obj.summary.trim().length > 0;
+  const hasFindings = Array.isArray(obj.findings) && obj.findings.length > 0;
+  const hasIssues = Array.isArray(obj.issues) && obj.issues.length > 0;
+  const hasVerdict = typeof obj.verdict === 'string' && ['APPROVE', 'REQUEST_CHANGES', 'COMMENT', 'PASS', 'FAIL'].includes(obj.verdict.toUpperCase());
+
+  return hasSummary || hasFindings || hasIssues || hasVerdict;
 }
 
 function normalizeReviewResult(obj: any): ReviewResult {
-  const verdict = ['APPROVE', 'REQUEST_CHANGES', 'COMMENT'].includes(
-    String(obj.verdict).toUpperCase()
-  )
-    ? (String(obj.verdict).toUpperCase() as ReviewVerdict)
-    : 'COMMENT';
+  let rawVerdict = String(obj.verdict || obj.status || 'COMMENT').toUpperCase();
+  let verdict: ReviewVerdict = 'COMMENT';
 
-  const findings: ReviewFinding[] = Array.isArray(obj.findings)
-    ? obj.findings.map((f: any) => ({
-        file_path: String(f.file_path || ''),
-        line_number: Number(f.line_number) || 1,
-        severity: ['CRITICAL', 'WARNING', 'INFO'].includes(
-          String(f.severity).toUpperCase()
-        )
-          ? (String(f.severity).toUpperCase() as ReviewSeverity)
-          : 'WARNING',
-        comment: String(f.comment || ''),
-      }))
+  if (rawVerdict === 'APPROVE' || rawVerdict === 'PASS') {
+    verdict = 'APPROVE';
+  } else if (rawVerdict === 'REQUEST_CHANGES' || rawVerdict === 'FAIL' || rawVerdict === 'NEEDS_REVISION') {
+    verdict = 'REQUEST_CHANGES';
+  }
+
+  const rawFindings = Array.isArray(obj.findings)
+    ? obj.findings
+    : Array.isArray(obj.issues)
+    ? obj.issues
     : [];
 
+  const findings: ReviewFinding[] = rawFindings.map((f: any) => {
+    const rawLine = f.line_number ?? f.line;
+    const lineNum = Number(rawLine);
+    const validLine = Number.isInteger(lineNum) && lineNum > 0 ? lineNum : undefined;
+
+    return {
+      file_path: String(f.file_path || f.path || f.file || '').trim(),
+      line_number: validLine,
+      severity: ['CRITICAL', 'WARNING', 'INFO'].includes(String(f.severity).toUpperCase())
+        ? (String(f.severity).toUpperCase() as ReviewSeverity)
+        : 'WARNING',
+      comment: String(f.comment || f.description || f.message || '').trim(),
+    };
+  });
+
+  let rawSummary = String(obj.summary || obj.result || '').trim();
+  if (!rawSummary || ['PASS', 'FAIL', 'APPROVE', 'REQUEST_CHANGES', 'NEEDS_REVISION'].includes(rawSummary.toUpperCase())) {
+    rawSummary = verdict === 'APPROVE'
+      ? 'All automated code quality and security checks passed successfully without actionable issues.'
+      : 'Code review completed with actionable findings that require attention.';
+  }
+
   return {
-    summary: String(obj.summary || 'Code review completed.'),
+    summary: rawSummary,
     verdict,
     findings,
   };

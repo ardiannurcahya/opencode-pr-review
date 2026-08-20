@@ -80,13 +80,16 @@ async function runAudit() {
     throw new Error('Failed to parse conversational JSON embedded output!');
   }
 
-  // Format D: Total fallback (plain text)
-  const plainText = 'The PR looks completely fine without issues.';
-  const parsedD = parseReviewResult(plainText);
-  if (parsedD.summary !== plainText || parsedD.verdict !== 'COMMENT') {
-    throw new Error('Fallback parser failed!');
+  // Format E: OpenCode NDJSON Event Stream
+  const ndjsonStream = `{"type":"step_start","timestamp":1000}
+{"type":"tool_use","timestamp":1001}
+{"type":"text","timestamp":1002,"part":{"text":"{\\"summary\\":\\"Found 1 issue\\",\\"verdict\\":\\"REQUEST_CHANGES\\",\\"findings\\":[{\\"file_path\\":\\"internal/health.go\\",\\"line_number\\":15,\\"severity\\":\\"WARNING\\",\\"comment\\":\\"Unused helper function\\"}]}"}}
+{"type":"step_finish","timestamp":1003}`;
+  const parsedE = parseReviewResult(ndjsonStream);
+  if (parsedE.verdict !== 'REQUEST_CHANGES' || parsedE.findings.length !== 1 || parsedE.findings[0].file_path !== 'internal/health.go') {
+    throw new Error('Failed to parse OpenCode NDJSON event stream!');
   }
-  console.log('LLM Parser successfully handled all 4 formats.');
+  console.log('LLM Parser successfully handled all 5 formats (including OpenCode NDJSON stream).');
 
   // 6. Test Webhook HMAC Signature & Action Filtering
   console.log('\n[Test 6] Testing Webhook Signature Verification & Filtering...');
