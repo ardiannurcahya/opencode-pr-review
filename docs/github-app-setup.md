@@ -94,7 +94,7 @@ This subscription triggers webhook deliveries for:
 ## Step 6: Generate Private Key and Retrieve App ID
 
 1. Click **Create GitHub App** at the bottom of the page.
-2. After creation, copy your **App ID** (for example, `4660077`) located in the **About** section.
+2. After creation, copy your **App ID** (for example, `123456`) located in the **About** section.
 3. Scroll down to the **Private keys** section.
 4. Click **Generate a private key**. A `.pem` file will be downloaded to your local environment.
 5. Move the downloaded `.pem` file to the root of the `opencode-pr-review` project directory:

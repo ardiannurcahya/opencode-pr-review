@@ -32,7 +32,7 @@ Ensure the following dependencies are installed on the host system:
 
 The reviewer utilizes local OpenCode configuration and custom OpenAI-compatible providers defined in `~/.config/opencode/opencode.json`.
 
-### Example Provider Setup in `~/.config/opencode/opencode.json`:
+### Example Template Setup in `~/.config/opencode/opencode.json`:
 ```json
 {
   "server": {
@@ -40,26 +40,26 @@ The reviewer utilizes local OpenCode configuration and custom OpenAI-compatible 
     "port": 4096
   },
   "provider": {
-    "trade": {
+    "custom_ai": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "LLM Agent Trade",
+      "name": "Custom OpenAI-Compatible Gateway",
       "options": {
-        "baseURL": "https://api.llm-agent-trade.my.id/v1",
-        "apiKey": "{file:~/.config/opencode/secrets/llm-agent-trade.key}"
+        "baseURL": "https://api.your-ai-gateway.com/v1",
+        "apiKey": "{file:~/.config/opencode/secrets/gateway.key}"
       },
       "models": {
-        "fireworks/accounts/fireworks/models/deepseek-v4-flash-0731": {
-          "name": "DeepSeek V4 Flash 0731",
+        "deepseek-ai/deepseek-coder": {
+          "name": "DeepSeek Coder V3",
           "limit": {
-            "context": 1000000,
-            "output": 131072
+            "context": 128000,
+            "output": 8192
           }
         },
-        "cx/gpt-5.6-luna": {
-          "name": "GPT-5.6 Luna",
+        "anthropic/claude-3-5-sonnet": {
+          "name": "Claude 3.5 Sonnet",
           "limit": {
-            "context": 262144,
-            "output": 131072
+            "context": 200000,
+            "output": 8192
           }
         }
       }
@@ -70,7 +70,7 @@ The reviewer utilizes local OpenCode configuration and custom OpenAI-compatible 
 
 Verify model connectivity directly in terminal:
 ```bash
-opencode run --model trade/fireworks/accounts/fireworks/models/deepseek-v4-flash-0731 "ping"
+opencode run --model custom_ai/deepseek-ai/deepseek-coder "ping"
 ```
 
 ---
@@ -91,7 +91,7 @@ PORT=8088
 WEBHOOK_SECRET=your_secure_webhook_secret_here
 
 # GitHub App ID
-GITHUB_APP_ID=4660077
+GITHUB_APP_ID=123456
 
 # Path to GitHub App Private Key PEM file
 GITHUB_PRIVATE_KEY_PATH=./github-app.private-key.pem
@@ -106,12 +106,12 @@ server:
 
 # GitHub App configuration
 github:
-  app_id: 4660077
+  app_id: 123456
   private_key_path: "./github-app.private-key.pem"
 
 # OpenCode Engine configuration
 opencode:
-  default_model: "trade/fireworks/accounts/fireworks/models/deepseek-v4-flash-0731"
+  default_model: "custom_ai/deepseek-ai/deepseek-coder"
   timeout_seconds: 300
 
 # Git workspaces configuration
@@ -124,12 +124,12 @@ repositories:
   your-org/my-backend:
     enabled: true
     base_branch: "main"
-    model: "trade/fireworks/accounts/fireworks/models/deepseek-v4-flash-0731"
+    model: "custom_ai/deepseek-ai/deepseek-coder"
 
   your-org/my-frontend:
     enabled: true
     base_branch: "main"
-    model: "trade/cx/gpt-5.6-luna"
+    model: "custom_ai/anthropic/claude-3-5-sonnet"
     custom_prompt: |
       - Prioritize accessibility (a11y), responsive design, and React re-render optimization.
 ```
@@ -260,7 +260,7 @@ To switch models, update `opencode.default_model` or the per-repository `model` 
 
 ```bash
 # Edit config.yaml
-# Change: default_model: "trade/cx/gpt-5.6-luna"
+# Change: default_model: "custom_ai/anthropic/claude-3-5-sonnet"
 
 # Restart service to apply changes
 sudo systemctl restart opencode-pr-review
