@@ -6,6 +6,8 @@ This document details the internal architecture, event lifecycle, and subsystems
 
 ## 1. High-Level System Architecture
 
+![OpenCode AI PR Reviewer Architecture](images/architecture_overview.jpg)
+
 ```mermaid
 flowchart TD
     subgraph GitHub["GitHub Platform"]

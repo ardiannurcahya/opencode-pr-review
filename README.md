@@ -56,6 +56,8 @@ Developer Opens PR -> Webhook (<1s) -> Standby Comment ("Analyzing...") -> OpenC
 
 ## Architecture Overview
 
+![OpenCode AI PR Reviewer Architecture](docs/images/architecture_overview.jpg)
+
 ```mermaid
 flowchart LR
     GH[GitHub PR Event] -->|HTTPS Webhook| Caddy[Caddy / Reverse Proxy]
