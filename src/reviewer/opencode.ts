@@ -26,41 +26,35 @@ export class OpenCodeReviewer {
       }
     }
 
-    // 2. Direct repository name match in prompts directory (e.g. prompts/repository-1.md)
+    // 2. Direct repository name match in prompts directory (e.g. prompts/my-repo.md)
     const repoName = repository.split('/').pop() || repository;
     const repoPromptPath = path.resolve(process.cwd(), 'prompts', `${repoName}.md`);
     if (fs.existsSync(repoPromptPath)) {
       return fs.readFileSync(repoPromptPath, 'utf8');
     }
 
-    // 3. Preset repository types
-    if (repoConfig?.type === 'opensource') {
-      const ossPath = path.resolve(process.cwd(), 'prompts', 'repository-1.md');
-      if (fs.existsSync(ossPath)) {
-        return fs.readFileSync(ossPath, 'utf8');
-      }
-      const genericOssPath = path.resolve(process.cwd(), 'prompts', 'opensource.md');
-      if (fs.existsSync(genericOssPath)) {
-        return fs.readFileSync(genericOssPath, 'utf8');
-      }
-    } else if (repoConfig?.type === 'internal') {
-      const internalPath = path.resolve(process.cwd(), 'prompts', 'repository-2.md');
-      if (fs.existsSync(internalPath)) {
-        return fs.readFileSync(internalPath, 'utf8');
-      }
-      const genericInternalPath = path.resolve(process.cwd(), 'prompts', 'internal.md');
-      if (fs.existsSync(genericInternalPath)) {
-        return fs.readFileSync(genericInternalPath, 'utf8');
-      }
-    }
-
-    // 4. Fallback to default review.md
+    // 3. Default universal review prompt (prompts/review.md)
     const defaultPath = path.resolve(process.cwd(), 'prompts', 'review.md');
     if (fs.existsSync(defaultPath)) {
       return fs.readFileSync(defaultPath, 'utf8');
     }
 
-    return 'Review the changes in this PR. Identify critical bugs, security risks, regressions, and concurrency issues. Return JSON output.';
+    // 4. Emergency fallback template with strict JSON schema
+    return `You are a senior code reviewer. Review the changes in this PR for bugs, security vulnerabilities, performance regressions, and concurrency issues.
+Do not comment on subjective formatting or style.
+Return ONLY a valid JSON object matching:
+{
+  "summary": "Summary of findings",
+  "verdict": "APPROVE | REQUEST_CHANGES | COMMENT",
+  "findings": [
+    {
+      "file_path": "path/to/file.ext",
+      "line_number": 1,
+      "severity": "CRITICAL | WARNING | INFO",
+      "comment": "Actionable issue description and recommendation"
+    }
+  ]
+}`;
   }
 
   /**

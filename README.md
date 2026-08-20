@@ -6,8 +6,8 @@ A lightweight, self-hosted automated Pull Request code reviewer powered by **Git
 
 ## Features
 
-- **Multi-Repository Routing**: Configure different models, prompt rules, and behaviors per repository.
-- **Open Source & Internal Presets**: Dedicated review strategies for community projects (welcoming tone, supply chain checks, breaking API alerts) and internal projects (direct tone, secret detection, database performance).
+- **Multi-Repository Routing**: Configure different models, custom prompt rules, and base branches per repository.
+- **Universal & Extensible Review Engine**: Master review rules out of the box with `prompts/review.md`, easily extendable per repository via `custom_prompt`.
 - **Zero API Key Clutter**: Leverages your existing OpenCode authenticated session and custom OpenAI-compatible providers (`opencode.json`).
 - **Smart Deduplication**: Automatically skips outdated commits if newer commits are pushed to the same PR, saving AI compute tokens.
 - **Isolated Workspaces**: Pull requests are checked out in dedicated local workspaces without cross-branch contamination.
@@ -143,15 +143,16 @@ Using a GitHub App allows managing reviews across multiple repositories with ins
    repositories:
      your-org/repository-1:
        enabled: true
-       type: "opensource"
        base_branch: "main"
        model: "custom/claude-sonnet-4-6"
 
      your-org/repository-2:
        enabled: true
-       type: "internal"
        base_branch: "main"
        model: "custom/gpt-5-model"
+       custom_prompt: |
+         - Ensure no internal API keys or secrets are committed.
+         - Guard against N+1 database queries.
    ```
 
 ### Step 4: Run the Reviewer Service
@@ -257,7 +258,9 @@ src/
 └── worker/
     └── worker.ts          # Asynchronous review loop worker
 prompts/
-├── repository-1.md        # Open source / community review prompt template
-├── repository-2.md        # Internal engineering review prompt template
-└── review.md              # Default fallback review prompt template
+├── review.md              # Universal PR code review prompt template (Default)
+└── examples/              # Reference prompt templates for specific needs
+    ├── opensource-community.md  # Welcoming tone & supply chain checks
+    ├── internal-backend.md      # Direct tone & secret / database checks
+    └── frontend-app.md          # UI, a11y, and bundle size checks
 ```

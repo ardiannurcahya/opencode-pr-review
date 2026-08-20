@@ -25,25 +25,31 @@ workspace:
 # Repositories configuration
 repositories:
   # ==========================================================
-  # REPOSITORY 1: Open Source (Community / Public)
+  # REPOSITORY 1: Uses default universal prompts/review.md
   # ==========================================================
-  your-org/repository-1:
+  your-org/common-service:
     enabled: true
-    type: "opensource"               # Uses prompts/repository-1.md (welcoming tone, supply chain security, public API & test checks)
     base_branch: "main"
     model: "custom/claude-sonnet-4-6" # Custom provider model from opencode.json
     custom_prompt: |
       - Ensure unit tests are added for any bug fixes under the tests/ directory.
-      - Ensure exported public functions have JSDoc / documentation comments.
 
   # ==========================================================
-  # REPOSITORY 2: Private / Internal (Internal Engineering)
+  # REPOSITORY 2: Open Source Library (uses opensource example)
   # ==========================================================
-  your-org/repository-2:
+  your-org/my-oss-library:
     enabled: true
-    type: "internal"                 # Uses prompts/repository-2.md (direct tone, secret protection, database query & performance checks)
     base_branch: "main"
-    model: "custom/gpt-5-model"          # Custom provider model from opencode.json
+    prompt_file: "./prompts/examples/opensource-community.md"
+    model: "custom/claude-sonnet-4-6"
+
+  # ==========================================================
+  # REPOSITORY 3: Sensitive Backend Service (uses internal example)
+  # ==========================================================
+  your-org/payment-gateway:
+    enabled: true
+    base_branch: "main"
+    prompt_file: "./prompts/examples/internal-backend.md"
+    model: "custom/gpt-5-model"
     custom_prompt: |
-      - Ensure no internal API keys or credentials are hardcoded.
-      - Verify that new database queries do not cause N+1 performance bottlenecks.
+      - Double check PCI-DSS compliance and credit card data masking.

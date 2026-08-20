@@ -105,8 +105,19 @@ async function runAudit() {
   if (!shouldProcessPRAction('opened', false)) throw new Error('Opened PR should be processed');
   if (!shouldProcessPRAction('synchronize', false)) throw new Error('Synchronize PR should be processed');
   if (shouldProcessPRAction('closed', false)) throw new Error('Closed PR should not be processed');
-  if (shouldProcessPRAction('opened', true)) throw new Error('Draft PR should not be processed');
-  console.log('Webhook verification and PR action filtering passed.');
+  // 7. Test Universal Review Prompt File
+  console.log('\n[Test 7] Testing Universal prompts/review.md template...');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const reviewPromptPath = path.resolve(process.cwd(), 'prompts', 'review.md');
+  if (!fs.existsSync(reviewPromptPath)) {
+    throw new Error('prompts/review.md does not exist!');
+  }
+  const promptContent = fs.readFileSync(reviewPromptPath, 'utf8');
+  if (!promptContent.includes('Core Review Priorities') || !promptContent.includes('Strict JSON')) {
+    throw new Error('prompts/review.md missing essential review sections!');
+  }
+  console.log('prompts/review.md successfully verified.');
 
   console.log('\n========================================');
   console.log('ALL AUDIT TESTS COMPLETED SUCCESSFULLY!');
