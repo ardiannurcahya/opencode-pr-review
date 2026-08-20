@@ -2,7 +2,7 @@
 
 # OpenCode AI PR Reviewer
 
-### Automated, AI Code Reviewer for GitHub Pull Requests
+### Bring your coding agents to GitHub PR reviews.
 
 [![Node.js](https://img.shields.io/badge/Node.js-v20%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![NPM Version](https://img.shields.io/npm/v/opencode-pr-review?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/opencode-pr-review)
