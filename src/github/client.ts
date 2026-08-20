@@ -9,6 +9,71 @@ export class GitHubClient {
   }
 
   /**
+   * Post an initial standby comment indicating review is currently in progress.
+   */
+  async postStandbyComment(params: {
+    owner: string;
+    repo: string;
+    pullNumber: number;
+  }): Promise<number | null> {
+    try {
+      const { owner, repo, pullNumber } = params;
+      const res = await this.octokit.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: pullNumber,
+        body: `> ⏳ **AI Code Reviewer** is currently analyzing your code changes...\n> *Estimated completion time: ~30–60 seconds.*`,
+      });
+      return res.data.id;
+    } catch (err: any) {
+      console.warn(`[GitHubClient] Failed to post standby comment: ${err.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Update an existing issue comment.
+   */
+  async updateComment(params: {
+    owner: string;
+    repo: string;
+    commentId: number;
+    body: string;
+  }): Promise<void> {
+    try {
+      const { owner, repo, commentId, body } = params;
+      await this.octokit.rest.issues.updateComment({
+        owner,
+        repo,
+        comment_id: commentId,
+        body,
+      });
+    } catch (err: any) {
+      console.warn(`[GitHubClient] Failed to update comment ${params.commentId}: ${err.message}`);
+    }
+  }
+
+  /**
+   * Delete an existing issue comment.
+   */
+  async deleteComment(params: {
+    owner: string;
+    repo: string;
+    commentId: number;
+  }): Promise<void> {
+    try {
+      const { owner, repo, commentId } = params;
+      await this.octokit.rest.issues.deleteComment({
+        owner,
+        repo,
+        comment_id: commentId,
+      });
+    } catch (err: any) {
+      console.warn(`[GitHubClient] Failed to delete comment ${params.commentId}: ${err.message}`);
+    }
+  }
+
+  /**
    * Post a comprehensive Pull Request review with inline comments.
    * If inline comments fail (e.g. line number is outside changed diff),
    * it gracefully appends unpostable comments to the main review body.
@@ -19,8 +84,9 @@ export class GitHubClient {
     pullNumber: number;
     commitId: string;
     reviewResult: ReviewResult;
+    standbyCommentId?: number | null;
   }): Promise<void> {
-    const { owner, repo, pullNumber, commitId, reviewResult } = params;
+    const { owner, repo, pullNumber, commitId, reviewResult, standbyCommentId } = params;
 
     const eventMap: Record<string, 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'> = {
       APPROVE: 'APPROVE',
@@ -79,6 +145,11 @@ export class GitHubClient {
         body: summaryBody,
         comments: inlineComments.length > 0 ? inlineComments : undefined,
       });
+
+      // Clean up standby comment after successful review
+      if (standbyCommentId) {
+        await this.deleteComment({ owner, repo, commentId: standbyCommentId });
+      }
     } catch (err: any) {
       console.warn(
         `[GitHubClient] Direct review with inline comments failed (likely lines outside diff): ${err.message}. Falling back to consolidated review body.`
@@ -108,6 +179,11 @@ export class GitHubClient {
         event: reviewEvent,
         body: fallbackBody,
       });
+
+      // Clean up standby comment after fallback review
+      if (standbyCommentId) {
+        await this.deleteComment({ owner, repo, commentId: standbyCommentId });
+      }
     }
   }
 }
