@@ -32,9 +32,6 @@ function extractOpenCodeOutput(raw: string): string {
       if (obj.type === 'text' && obj.part && typeof obj.part.text === 'string') {
         aggregatedText = obj.part.text + aggregatedText;
         foundTextEvent = true;
-      } else if (obj.content && typeof obj.content === 'string') {
-        aggregatedText = obj.content + aggregatedText;
-        foundTextEvent = true;
       }
     } catch {}
   }
@@ -68,15 +65,7 @@ export function parseReviewResult(rawOutput: string): ReviewResult {
   // 0. Extract text from OpenCode NDJSON stream if present
   const cleanedText = extractOpenCodeOutput(rawOutput.trim());
 
-  // 1. Try direct JSON parsing
-  try {
-    const direct = JSON.parse(cleanedText);
-    if (isValidReviewResult(direct)) {
-      return normalizeReviewResult(direct);
-    }
-  } catch {}
-
-  // 2. Try extracting from markdown code block ```json ... ``` or ``` ... ```
+  // 1. Try extracting from markdown code block ```json ... ``` or ``` ... ``` FIRST
   const codeBlockMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (codeBlockMatch && codeBlockMatch[1]) {
     try {
@@ -86,6 +75,14 @@ export function parseReviewResult(rawOutput: string): ReviewResult {
       }
     } catch {}
   }
+
+  // 2. Try direct JSON parsing
+  try {
+    const direct = JSON.parse(cleanedText);
+    if (isValidReviewResult(direct)) {
+      return normalizeReviewResult(direct);
+    }
+  } catch {}
 
   // 3. Try finding largest JSON object substring with curly braces { ... }
   const firstBrace = cleanedText.indexOf('{');
@@ -135,14 +132,19 @@ function normalizeReviewResult(obj: any): ReviewResult {
     ? obj.issues
     : [];
 
-  const findings: ReviewFinding[] = rawFindings.map((f: any) => ({
-    file_path: String(f.file_path || f.path || f.file || ''),
-    line_number: Number(f.line_number || f.line) || 1,
-    severity: ['CRITICAL', 'WARNING', 'INFO'].includes(String(f.severity).toUpperCase())
-      ? (String(f.severity).toUpperCase() as ReviewSeverity)
-      : 'WARNING',
-    comment: String(f.comment || f.description || f.message || ''),
-  }));
+  const findings: ReviewFinding[] = rawFindings.map((f: any) => {
+    const lineNum = Number(f.line_number || f.line);
+    const validLine = Number.isInteger(lineNum) && lineNum > 0 ? lineNum : 1;
+
+    return {
+      file_path: String(f.file_path || f.path || f.file || ''),
+      line_number: validLine,
+      severity: ['CRITICAL', 'WARNING', 'INFO'].includes(String(f.severity).toUpperCase())
+        ? (String(f.severity).toUpperCase() as ReviewSeverity)
+        : 'WARNING',
+      comment: String(f.comment || f.description || f.message || ''),
+    };
+  });
 
   const summary = String(obj.summary || obj.result || 'Code review completed.');
 
