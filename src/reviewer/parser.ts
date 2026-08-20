@@ -15,7 +15,8 @@ export interface ReviewResult {
 }
 
 /**
- * Extract actual AI text content from OpenCode event-stream output (NDJSON).
+ * Extract the final assistant text response from OpenCode event-stream output (NDJSON),
+ * collecting only the trailing contiguous run of text events (ignoring intermediate step narrations).
  */
 function extractOpenCodeOutput(raw: string): string {
   if (!raw || !raw.includes('{"type":')) {
@@ -23,35 +24,44 @@ function extractOpenCodeOutput(raw: string): string {
   }
 
   const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean);
-  let aggregatedText = '';
-  let foundTextEvent = false;
+  const trailingTextParts: string[] = [];
+  let collectingTrailing = false;
 
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
       const obj = JSON.parse(lines[i]);
       if (obj.type === 'text' && obj.part && typeof obj.part.text === 'string') {
-        aggregatedText = obj.part.text + aggregatedText;
-        foundTextEvent = true;
+        trailingTextParts.unshift(obj.part.text);
+        collectingTrailing = true;
+      } else if (collectingTrailing) {
+        // Encountered non-text event (e.g. step_finish, tool_use) before this text run: stop
+        break;
       }
-    } catch {}
+    } catch {
+      if (collectingTrailing) {
+        break;
+      }
+    }
   }
 
-  if (foundTextEvent && aggregatedText.trim()) {
-    return aggregatedText.trim();
+  if (trailingTextParts.length > 0) {
+    const combined = trailingTextParts.join('').trim();
+    if (combined) return combined;
   }
 
   return raw;
 }
 
 /**
- * Robustly find and parse the outermost JSON object within a string,
- * correctly handling nested markdown blocks, string literals, and escaped characters.
+ * Robustly find and parse the review JSON object within a string,
+ * scanning for the most complete candidate object (prioritizing objects with findings and summaries).
  */
 function findBalancedJsonObject(str: string): any | null {
   let startIndex = -1;
   let depth = 0;
   let inString = false;
   let escape = false;
+  const candidates: any[] = [];
 
   for (let i = 0; i < str.length; i++) {
     const char = str[i];
@@ -78,21 +88,27 @@ function findBalancedJsonObject(str: string): any | null {
       } else if (char === '}') {
         depth--;
         if (depth === 0 && startIndex !== -1) {
-          const candidate = str.substring(startIndex, i + 1);
+          const candidateStr = str.substring(startIndex, i + 1);
           try {
-            const parsed = JSON.parse(candidate);
+            const parsed = JSON.parse(candidateStr);
             if (isValidReviewResult(parsed)) {
-              return parsed;
+              candidates.push(parsed);
             }
           } catch {}
-          // Reset startIndex if this balanced chunk wasn't a valid review object
           startIndex = -1;
         }
       }
     }
   }
 
-  return null;
+  if (candidates.length === 0) return null;
+
+  // Prioritize candidates with findings, otherwise take the last valid candidate
+  const withFindings = candidates.find(
+    (c) => (Array.isArray(c.findings) && c.findings.length > 0) || (Array.isArray(c.issues) && c.issues.length > 0)
+  );
+
+  return withFindings || candidates[candidates.length - 1];
 }
 
 export function parseReviewResult(rawOutput: string): ReviewResult {
@@ -130,16 +146,14 @@ export function parseReviewResult(rawOutput: string): ReviewResult {
 }
 
 function isValidReviewResult(obj: any): boolean {
-  return (
-    obj &&
-    typeof obj === 'object' &&
-    (typeof obj.summary === 'string' ||
-      Array.isArray(obj.findings) ||
-      Array.isArray(obj.issues) ||
-      typeof obj.result === 'string' ||
-      typeof obj.verdict === 'string' ||
-      typeof obj.status === 'string')
-  );
+  if (!obj || typeof obj !== 'object') return false;
+
+  const hasSummary = typeof obj.summary === 'string' && obj.summary.trim().length > 0;
+  const hasFindings = Array.isArray(obj.findings) && obj.findings.length > 0;
+  const hasIssues = Array.isArray(obj.issues) && obj.issues.length > 0;
+  const hasVerdict = typeof obj.verdict === 'string' && ['APPROVE', 'REQUEST_CHANGES', 'COMMENT', 'PASS', 'FAIL'].includes(obj.verdict.toUpperCase());
+
+  return hasSummary || hasFindings || hasIssues || hasVerdict;
 }
 
 function normalizeReviewResult(obj: any): ReviewResult {
