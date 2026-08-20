@@ -1,0 +1,49 @@
+# Server configuration
+server:
+  port: 8080
+  webhook_secret: "${WEBHOOK_SECRET}"
+
+# GitHub App configuration
+github:
+  app_id: 123456
+  private_key_path: "./github-app.private-key.pem"
+
+# OpenCode Engine configuration
+opencode:
+  # Optional: URL of persistent OpenCode headless server (e.g. opencode serve --port 4096)
+  server_url: "http://127.0.0.1:4096"
+  server_password: "${OPENCODE_SERVER_PASSWORD}"
+  # Default model (can use custom provider from opencode.json like: custom/claude-sonnet-4-6)
+  default_model: "custom/claude-sonnet-4-6"
+  timeout_seconds: 300
+
+# Git workspaces configuration
+workspace:
+  base_dir: "./workspaces"
+  clean_after_review: false
+
+# Repositories configuration
+repositories:
+  # ==========================================================
+  # REPOSITORY 1: Open Source (Community / Public)
+  # ==========================================================
+  your-org/repository-1:
+    enabled: true
+    type: "opensource"               # Uses prompts/repository-1.md (welcoming tone, supply chain security, public API & test checks)
+    base_branch: "main"
+    model: "custom/claude-sonnet-4-6" # Custom provider model from opencode.json
+    custom_prompt: |
+      - Ensure unit tests are added for any bug fixes under the tests/ directory.
+      - Ensure exported public functions have JSDoc / documentation comments.
+
+  # ==========================================================
+  # REPOSITORY 2: Private / Internal (Internal Engineering)
+  # ==========================================================
+  your-org/repository-2:
+    enabled: true
+    type: "internal"                 # Uses prompts/repository-2.md (direct tone, secret protection, database query & performance checks)
+    base_branch: "main"
+    model: "custom/gpt-5-model"          # Custom provider model from opencode.json
+    custom_prompt: |
+      - Ensure no internal API keys or credentials are hardcoded.
+      - Verify that new database queries do not cause N+1 performance bottlenecks.
