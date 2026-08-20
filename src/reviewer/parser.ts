@@ -40,17 +40,59 @@ function extractOpenCodeOutput(raw: string): string {
     return aggregatedText.trim();
   }
 
-  // If no text event found, filter out step/tool JSON lines
-  const cleanLines = lines.filter((line) => {
-    try {
-      const parsed = JSON.parse(line);
-      return !parsed.type || !['step_start', 'step_finish', 'tool_use', 'session'].includes(parsed.type);
-    } catch {
-      return true;
-    }
-  });
+  return raw;
+}
 
-  return cleanLines.join('\n').trim() || raw;
+/**
+ * Robustly find and parse the outermost JSON object within a string,
+ * correctly handling nested markdown blocks, string literals, and escaped characters.
+ */
+function findBalancedJsonObject(str: string): any | null {
+  let startIndex = -1;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escape = true;
+      continue;
+    }
+
+    if (char === '"' && !escape) {
+      inString = !inString;
+      continue;
+    }
+
+    if (!inString) {
+      if (char === '{') {
+        if (depth === 0) startIndex = i;
+        depth++;
+      } else if (char === '}') {
+        depth--;
+        if (depth === 0 && startIndex !== -1) {
+          const candidate = str.substring(startIndex, i + 1);
+          try {
+            const parsed = JSON.parse(candidate);
+            if (isValidReviewResult(parsed)) {
+              return parsed;
+            }
+          } catch {}
+          // Reset startIndex if this balanced chunk wasn't a valid review object
+          startIndex = -1;
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 export function parseReviewResult(rawOutput: string): ReviewResult {
@@ -65,18 +107,7 @@ export function parseReviewResult(rawOutput: string): ReviewResult {
   // 0. Extract text from OpenCode NDJSON stream if present
   const cleanedText = extractOpenCodeOutput(rawOutput.trim());
 
-  // 1. Try extracting from markdown code block ```json ... ``` or ``` ... ``` FIRST
-  const codeBlockMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (codeBlockMatch && codeBlockMatch[1]) {
-    try {
-      const parsed = JSON.parse(codeBlockMatch[1].trim());
-      if (isValidReviewResult(parsed)) {
-        return normalizeReviewResult(parsed);
-      }
-    } catch {}
-  }
-
-  // 2. Try direct JSON parsing
+  // 1. Direct JSON parse
   try {
     const direct = JSON.parse(cleanedText);
     if (isValidReviewResult(direct)) {
@@ -84,20 +115,13 @@ export function parseReviewResult(rawOutput: string): ReviewResult {
     }
   } catch {}
 
-  // 3. Try finding largest JSON object substring with curly braces { ... }
-  const firstBrace = cleanedText.indexOf('{');
-  const lastBrace = cleanedText.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    try {
-      const substring = cleanedText.substring(firstBrace, lastBrace + 1);
-      const parsed = JSON.parse(substring);
-      if (isValidReviewResult(parsed)) {
-        return normalizeReviewResult(parsed);
-      }
-    } catch {}
+  // 2. Balanced curly brace extraction (handles markdown blocks, nested code fences, conversational lead-in)
+  const balanced = findBalancedJsonObject(cleanedText);
+  if (balanced) {
+    return normalizeReviewResult(balanced);
   }
 
-  // 4. Fallback: return cleaned output as summary comment
+  // 3. Fallback: return cleaned output as summary comment
   return {
     summary: cleanedText,
     verdict: 'COMMENT',
@@ -112,7 +136,9 @@ function isValidReviewResult(obj: any): boolean {
     (typeof obj.summary === 'string' ||
       Array.isArray(obj.findings) ||
       Array.isArray(obj.issues) ||
-      typeof obj.result === 'string')
+      typeof obj.result === 'string' ||
+      typeof obj.verdict === 'string' ||
+      typeof obj.status === 'string')
   );
 }
 

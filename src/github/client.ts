@@ -221,11 +221,19 @@ export class GitHubClient {
         `[GitHubClient] Direct review with inline comments failed (likely lines outside diff): ${err.message}. Falling back to consolidated review body.`
       );
 
-      // Fallback: consolidate all findings into top-level body comment
+      // Fallback: consolidate all unincluded findings into top-level body comment
       let fallbackBody = summaryBody;
-      if (reviewResult.findings.length > 0 && generalFindings.length === 0) {
+      const alreadyIncluded = new Set(
+        generalFindings.map((f) => `${f.file_path || ''}:${f.line_number ?? ''}`)
+      );
+
+      const unincludedFindings = reviewResult.findings.filter(
+        (f) => !alreadyIncluded.has(`${f.file_path || ''}:${f.line_number ?? ''}`)
+      );
+
+      if (unincludedFindings.length > 0) {
         fallbackBody += `\n---\n### 🔍 Detailed Findings\n\n`;
-        for (const f of reviewResult.findings) {
+        for (const f of unincludedFindings) {
           const alertType =
             f.severity === 'CRITICAL'
               ? '[!CAUTION]'
