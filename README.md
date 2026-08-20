@@ -2,7 +2,7 @@
 
 # OpenCode AI PR Reviewer
 
-### Automated, Production-Grade AI Code Reviewer for GitHub Pull Requests
+### Automated, AI Code Reviewer for GitHub Pull Requests
 
 [![Node.js](https://img.shields.io/badge/Node.js-v20%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
