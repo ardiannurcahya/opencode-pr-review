@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import express, { Request, Response } from 'express';
 import { loadConfig } from './config.js';
 import { initDatabase } from './queue/db.js';

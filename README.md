@@ -5,6 +5,8 @@
 ### Automated, AI Code Reviewer for GitHub Pull Requests
 
 [![Node.js](https://img.shields.io/badge/Node.js-v20%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![NPM Version](https://img.shields.io/npm/v/opencode-pr-review?style=for-the-badge&logo=npm&logoColor=white)](https://www.npmjs.com/package/opencode-pr-review)
+[![Docker Image](https://img.shields.io/badge/Docker-GHCR-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://github.com/ardiannurcahya/opencode-pr-review/pkgs/container/opencode-pr-review)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![GitHub App](https://img.shields.io/badge/GitHub%20App-Asymmetric%20Auth-181717?style=for-the-badge&logo=github&logoColor=white)](https://docs.github.com/en/apps)
 [![OpenCode](https://img.shields.io/badge/OpenCode-AI%20Engine-8A2BE2?style=for-the-badge)](https://opencode.ai)
@@ -71,31 +73,36 @@ flowchart LR
 
 ---
 
-## Quick Start
+## Installation & Quick Start
 
-### 1. Clone Repository and Install Dependencies
+OpenCode PR Reviewer can be installed and deployed in three ways:
+
+### Option 1: Via NPM Package (Recommended)
+
+Install the global CLI binary or run directly using `npx`:
+
 ```bash
-git clone https://github.com/ardiannurcahya/opencode-pr-review.git
-cd opencode-pr-review
-npm install
+# Global installation
+npm install -g opencode-pr-review
+
+# Or run directly via npx
+npx opencode-pr-review
 ```
 
-### 2. Configure Environment and Credentials
+#### Setup Configuration:
 ```bash
-cp .env.example .env
-cp config.example.yaml config.yaml
-```
+# Create working directory
+mkdir -p ~/opencode-pr-review && cd ~/opencode-pr-review
 
-Edit `.env`:
-```ini
+# Create .env and config.yaml
+cat << 'EOF' > .env
 PORT=8088
 WEBHOOK_SECRET=your_webhook_secret_from_github_app
 GITHUB_APP_ID=123456
 GITHUB_PRIVATE_KEY_PATH=./github-app.private-key.pem
-```
+EOF
 
-Edit `config.yaml`:
-```yaml
+cat << 'EOF' > config.yaml
 server:
   port: 8088
   webhook_secret: "${WEBHOOK_SECRET}"
@@ -112,10 +119,78 @@ repositories:
   your-org/your-repo:
     enabled: true
     base_branch: "main"
+EOF
+
+# Place your GitHub App private key
+# cp /path/to/github-app.private-key.pem ./github-app.private-key.pem
+
+# Start reviewer service
+opencode-pr-review
 ```
 
-### 3. Build and Run
+---
+
+### Option 2: Via Prebuilt Docker Image (GHCR)
+
+Run container directly from the GitHub Container Registry without cloning the repository or building locally:
+
 ```bash
+docker run -d \
+  --name opencode-pr-reviewer \
+  --restart unless-stopped \
+  -p 8088:8088 \
+  --env-file .env \
+  -v $(pwd)/config.yaml:/app/config.yaml:ro \
+  -v $(pwd)/github-app.private-key.pem:/app/github-app.private-key.pem:ro \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/workspaces:/app/workspaces \
+  -v ~/.config/opencode:/root/.config/opencode:ro \
+  ghcr.io/ardiannurcahya/opencode-pr-review:latest
+```
+
+Or using **Docker Compose**:
+
+```yaml
+version: '3.8'
+
+services:
+  opencode-pr-reviewer:
+    image: ghcr.io/ardiannurcahya/opencode-pr-review:latest
+    container_name: opencode-pr-reviewer
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    env_file:
+      - .env
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./github-app.private-key.pem:/app/github-app.private-key.pem:ro
+      - ./data:/app/data
+      - ./workspaces:/app/workspaces
+      - ~/.config/opencode:/root/.config/opencode:ro
+```
+
+```bash
+docker compose up -d
+```
+
+---
+
+### Option 3: From Source Code
+
+Clone the repository and run locally for development:
+
+```bash
+# 1. Clone repository and install dependencies
+git clone https://github.com/ardiannurcahya/opencode-pr-review.git
+cd opencode-pr-review
+npm install
+
+# 2. Configure environment and credentials
+cp .env.example .env
+cp config.example.yaml config.yaml
+
+# 3. Build and start
 npm run build
 npm start
 ```

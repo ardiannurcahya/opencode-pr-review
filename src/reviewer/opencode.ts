@@ -86,7 +86,7 @@ Return ONLY a valid JSON object matching:
 
     prompt += `Please review the diff against origin/${baseBranch} and output your review findings now.`;
 
-    const agent = repoConfig?.agent || this.config.opencode.agent || 'reviewer';
+    const agent = repoConfig?.agent || this.config.opencode.agent;
     const args: string[] = ['run'];
 
     if (this.config.opencode.server_url) {
