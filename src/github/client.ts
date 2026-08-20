@@ -30,34 +30,42 @@ export class GitHubClient {
 
     const reviewEvent = eventMap[reviewResult.verdict] || 'COMMENT';
 
-    // Format individual inline comments
+    // Format individual inline comments with GitHub alert syntax
     const inlineComments = reviewResult.findings
       .filter((f) => f.file_path && typeof f.line_number === 'number')
       .map((f) => {
-        const severityBadge =
+        const alertType =
           f.severity === 'CRITICAL'
-            ? '**[CRITICAL]**'
+            ? '[!CAUTION]'
             : f.severity === 'WARNING'
-            ? '**[WARNING]**'
-            : '**[INFO]**';
+            ? '[!WARNING]'
+            : '[!NOTE]';
 
         return {
           path: f.file_path,
           line: f.line_number,
-          body: `${severityBadge}\n\n${f.comment}`,
+          body: `> ${alertType}\n> **${f.severity}**: ${f.comment}`,
         };
       });
 
     // Build the top-level summary body
     const findingsCount = reviewResult.findings.length;
-    let summaryBody = `### Code Review Summary\n\n`;
-    summaryBody += `**Verdict**: \`${reviewEvent}\`\n\n`;
-    summaryBody += `${reviewResult.summary}\n\n`;
+    let summaryBody = `## 🤖 AI Code Review Summary\n\n`;
+    
+    if (reviewEvent === 'APPROVE') {
+      summaryBody += `**Verdict**: ✅ \`APPROVE\`\n\n`;
+    } else if (reviewEvent === 'REQUEST_CHANGES') {
+      summaryBody += `**Verdict**: ❌ \`REQUEST_CHANGES\`\n\n`;
+    } else {
+      summaryBody += `**Verdict**: 💬 \`COMMENT\`\n\n`;
+    }
+
+    summaryBody += `### 📝 Summary\n${reviewResult.summary}\n\n`;
 
     if (findingsCount > 0) {
-      summaryBody += `**Findings**: ${findingsCount} issue(s) identified.\n`;
+      summaryBody += `**Total Findings**: 🔍 ${findingsCount} actionable issue(s) identified.\n`;
     } else {
-      summaryBody += `**Findings**: No actionable issues identified.\n`;
+      summaryBody += `**Total Findings**: ✨ No actionable issues identified. Code looks good!\n`;
     }
 
     try {
@@ -77,10 +85,20 @@ export class GitHubClient {
       );
 
       // Fallback: consolidate all findings into top-level body comment
-      let fallbackBody = `${summaryBody}\n\n---\n### Detailed Findings\n\n`;
-      for (const f of reviewResult.findings) {
-        fallbackBody += `#### \`${f.file_path}\` (Line ${f.line_number})\n`;
-        fallbackBody += `**Severity**: ${f.severity}\n\n${f.comment}\n\n`;
+      let fallbackBody = summaryBody;
+      if (reviewResult.findings.length > 0) {
+        fallbackBody += `\n---\n### 🔍 Detailed Findings\n\n`;
+        for (const f of reviewResult.findings) {
+          const alertType =
+            f.severity === 'CRITICAL'
+              ? '[!CAUTION]'
+              : f.severity === 'WARNING'
+              ? '[!WARNING]'
+              : '[!NOTE]';
+
+          fallbackBody += `#### 📄 \`${f.file_path}\` (Line ${f.line_number})\n`;
+          fallbackBody += `> ${alertType}\n> **${f.severity}**: ${f.comment}\n\n`;
+        }
       }
 
       await this.octokit.rest.pulls.createReview({

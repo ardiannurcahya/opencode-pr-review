@@ -14,6 +14,48 @@ export interface ReviewResult {
   findings: ReviewFinding[];
 }
 
+/**
+ * Extract actual AI text content from OpenCode event-stream output (NDJSON).
+ */
+function extractOpenCodeOutput(raw: string): string {
+  if (!raw || !raw.includes('{"type":')) {
+    return raw;
+  }
+
+  const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean);
+  let aggregatedText = '';
+  let foundTextEvent = false;
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const obj = JSON.parse(lines[i]);
+      if (obj.type === 'text' && obj.part && typeof obj.part.text === 'string') {
+        aggregatedText = obj.part.text + aggregatedText;
+        foundTextEvent = true;
+      } else if (obj.content && typeof obj.content === 'string') {
+        aggregatedText = obj.content + aggregatedText;
+        foundTextEvent = true;
+      }
+    } catch {}
+  }
+
+  if (foundTextEvent && aggregatedText.trim()) {
+    return aggregatedText.trim();
+  }
+
+  // If no text event found, filter out step/tool JSON lines
+  const cleanLines = lines.filter((line) => {
+    try {
+      const parsed = JSON.parse(line);
+      return !parsed.type || !['step_start', 'step_finish', 'tool_use', 'session'].includes(parsed.type);
+    } catch {
+      return true;
+    }
+  });
+
+  return cleanLines.join('\n').trim() || raw;
+}
+
 export function parseReviewResult(rawOutput: string): ReviewResult {
   if (!rawOutput || !rawOutput.trim()) {
     return {
@@ -23,16 +65,19 @@ export function parseReviewResult(rawOutput: string): ReviewResult {
     };
   }
 
+  // 0. Extract text from OpenCode NDJSON stream if present
+  const cleanedText = extractOpenCodeOutput(rawOutput.trim());
+
   // 1. Try direct JSON parsing
   try {
-    const direct = JSON.parse(rawOutput.trim());
+    const direct = JSON.parse(cleanedText);
     if (isValidReviewResult(direct)) {
       return normalizeReviewResult(direct);
     }
   } catch {}
 
   // 2. Try extracting from markdown code block ```json ... ``` or ``` ... ```
-  const codeBlockMatch = rawOutput.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  const codeBlockMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (codeBlockMatch && codeBlockMatch[1]) {
     try {
       const parsed = JSON.parse(codeBlockMatch[1].trim());
@@ -43,11 +88,11 @@ export function parseReviewResult(rawOutput: string): ReviewResult {
   }
 
   // 3. Try finding largest JSON object substring with curly braces { ... }
-  const firstBrace = rawOutput.indexOf('{');
-  const lastBrace = rawOutput.lastIndexOf('}');
+  const firstBrace = cleanedText.indexOf('{');
+  const lastBrace = cleanedText.lastIndexOf('}');
   if (firstBrace !== -1 && lastBrace > firstBrace) {
     try {
-      const substring = rawOutput.substring(firstBrace, lastBrace + 1);
+      const substring = cleanedText.substring(firstBrace, lastBrace + 1);
       const parsed = JSON.parse(substring);
       if (isValidReviewResult(parsed)) {
         return normalizeReviewResult(parsed);
@@ -55,9 +100,9 @@ export function parseReviewResult(rawOutput: string): ReviewResult {
     } catch {}
   }
 
-  // 4. Fallback: return raw output as summary comment
+  // 4. Fallback: return cleaned output as summary comment
   return {
-    summary: rawOutput.trim(),
+    summary: cleanedText,
     verdict: 'COMMENT',
     findings: [],
   };
@@ -67,32 +112,42 @@ function isValidReviewResult(obj: any): boolean {
   return (
     obj &&
     typeof obj === 'object' &&
-    (typeof obj.summary === 'string' || Array.isArray(obj.findings))
+    (typeof obj.summary === 'string' ||
+      Array.isArray(obj.findings) ||
+      Array.isArray(obj.issues) ||
+      typeof obj.result === 'string')
   );
 }
 
 function normalizeReviewResult(obj: any): ReviewResult {
-  const verdict = ['APPROVE', 'REQUEST_CHANGES', 'COMMENT'].includes(
-    String(obj.verdict).toUpperCase()
-  )
-    ? (String(obj.verdict).toUpperCase() as ReviewVerdict)
-    : 'COMMENT';
+  let rawVerdict = String(obj.verdict || obj.status || 'COMMENT').toUpperCase();
+  let verdict: ReviewVerdict = 'COMMENT';
 
-  const findings: ReviewFinding[] = Array.isArray(obj.findings)
-    ? obj.findings.map((f: any) => ({
-        file_path: String(f.file_path || ''),
-        line_number: Number(f.line_number) || 1,
-        severity: ['CRITICAL', 'WARNING', 'INFO'].includes(
-          String(f.severity).toUpperCase()
-        )
-          ? (String(f.severity).toUpperCase() as ReviewSeverity)
-          : 'WARNING',
-        comment: String(f.comment || ''),
-      }))
+  if (rawVerdict === 'APPROVE' || rawVerdict === 'PASS') {
+    verdict = 'APPROVE';
+  } else if (rawVerdict === 'REQUEST_CHANGES' || rawVerdict === 'FAIL' || rawVerdict === 'NEEDS_REVISION') {
+    verdict = 'REQUEST_CHANGES';
+  }
+
+  const rawFindings = Array.isArray(obj.findings)
+    ? obj.findings
+    : Array.isArray(obj.issues)
+    ? obj.issues
     : [];
 
+  const findings: ReviewFinding[] = rawFindings.map((f: any) => ({
+    file_path: String(f.file_path || f.path || f.file || ''),
+    line_number: Number(f.line_number || f.line) || 1,
+    severity: ['CRITICAL', 'WARNING', 'INFO'].includes(String(f.severity).toUpperCase())
+      ? (String(f.severity).toUpperCase() as ReviewSeverity)
+      : 'WARNING',
+    comment: String(f.comment || f.description || f.message || ''),
+  }));
+
+  const summary = String(obj.summary || obj.result || 'Code review completed.');
+
   return {
-    summary: String(obj.summary || 'Code review completed.'),
+    summary,
     verdict,
     findings,
   };
