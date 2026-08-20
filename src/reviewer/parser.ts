@@ -3,7 +3,7 @@ export type ReviewVerdict = 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
 
 export interface ReviewFinding {
   file_path: string;
-  line_number: number;
+  line_number?: number;
   severity: ReviewSeverity;
   comment: string;
 }
@@ -133,23 +133,29 @@ function normalizeReviewResult(obj: any): ReviewResult {
     : [];
 
   const findings: ReviewFinding[] = rawFindings.map((f: any) => {
-    const lineNum = Number(f.line_number || f.line);
-    const validLine = Number.isInteger(lineNum) && lineNum > 0 ? lineNum : 1;
+    const rawLine = f.line_number ?? f.line;
+    const lineNum = Number(rawLine);
+    const validLine = Number.isInteger(lineNum) && lineNum > 0 ? lineNum : undefined;
 
     return {
-      file_path: String(f.file_path || f.path || f.file || ''),
+      file_path: String(f.file_path || f.path || f.file || '').trim(),
       line_number: validLine,
       severity: ['CRITICAL', 'WARNING', 'INFO'].includes(String(f.severity).toUpperCase())
         ? (String(f.severity).toUpperCase() as ReviewSeverity)
         : 'WARNING',
-      comment: String(f.comment || f.description || f.message || ''),
+      comment: String(f.comment || f.description || f.message || '').trim(),
     };
   });
 
-  const summary = String(obj.summary || obj.result || 'Code review completed.');
+  let rawSummary = String(obj.summary || obj.result || '').trim();
+  if (!rawSummary || ['PASS', 'FAIL', 'APPROVE', 'REQUEST_CHANGES', 'NEEDS_REVISION'].includes(rawSummary.toUpperCase())) {
+    rawSummary = verdict === 'APPROVE'
+      ? 'All automated code quality and security checks passed successfully without actionable issues.'
+      : 'Code review completed with actionable findings that require attention.';
+  }
 
   return {
-    summary,
+    summary: rawSummary,
     verdict,
     findings,
   };

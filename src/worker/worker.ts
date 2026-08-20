@@ -154,14 +154,11 @@ export class ReviewWorker {
         console.log(`[Worker] Job #${job.id} successfully completed.`);
       } catch (innerErr: any) {
         if (standbyCommentId) {
-          const sanitizedReason = String(innerErr?.message || innerErr)
-            .slice(0, 300)
-            .replace(/[\r\n]+/g, ' ');
           await githubClient.updateComment({
             owner,
             repo,
             commentId: standbyCommentId,
-            body: `> ⚠️ **AI Code Reviewer** encountered an issue while analyzing this PR.\n> *Details*: \`${sanitizedReason}\`\n> *Please check the reviewer service logs for further diagnosis.*`,
+            body: `> ⚠️ **AI Code Reviewer** encountered an unexpected error while analyzing this Pull Request. The error details have been logged for internal investigation.`,
           });
         }
         throw innerErr;
