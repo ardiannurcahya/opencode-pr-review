@@ -126,14 +126,16 @@ export class GitHubClient {
     const generalFindings: ReviewFinding[] = [];
 
     for (const f of reviewResult.findings) {
-      if (f.file_path && typeof f.line_number === 'number') {
+      if (
+        f.file_path &&
+        typeof f.line_number === 'number' &&
+        (f.severity === 'CRITICAL' || f.severity === 'WARNING')
+      ) {
         const key = `${f.file_path}:${f.line_number}`;
         const existing = inlineFindingsMap.get(key);
         if (existing) {
           existing.comments.push(f.comment);
-          // Promote to higher severity if critical
           if (f.severity === 'CRITICAL') existing.severity = 'CRITICAL';
-          else if (f.severity === 'WARNING' && existing.severity !== 'CRITICAL') existing.severity = 'WARNING';
         } else {
           inlineFindingsMap.set(key, {
             path: f.file_path,
@@ -152,9 +154,7 @@ export class GitHubClient {
       const alertType =
         item.severity === 'CRITICAL'
           ? '[!CAUTION]'
-          : item.severity === 'WARNING'
-          ? '[!WARNING]'
-          : '[!NOTE]';
+          : '[!WARNING]';
 
       const combinedComment = item.comments.join('\n\n---\n\n');
       return {
@@ -176,16 +176,12 @@ export class GitHubClient {
       summaryBody += `**Verdict**: 💬 \`COMMENT\`\n\n`;
     }
 
-    summaryBody += `### 📝 Summary\n${reviewResult.summary}\n\n`;
+    summaryBody += `### 📝 Summary\n${reviewResult.summary.trim()}\n\n`;
 
     if (reviewEvent === 'APPROVE') {
-      if (totalFindingsCount > 0) {
-        summaryBody += `**Advisory Notes**: 💡 ${totalFindingsCount} non-blocking suggestion(s) provided. Safe to merge!\n`;
-      } else {
-        summaryBody += `**Status**: ✨ Clean! All automated checks passed without issues. Ready to merge!\n`;
-      }
+      summaryBody += `**Status**: ✨ Clean! Code is approved and ready to merge.\n`;
     } else if (reviewEvent === 'REQUEST_CHANGES') {
-      summaryBody += `**Blocking Issues**: 🚨 ${totalFindingsCount} critical/blocking issue(s) identified. Must be resolved before merge.\n`;
+      summaryBody += `**Blocking Issues**: 🚨 ${totalFindingsCount} critical issue(s) identified. Must be resolved before merge.\n`;
     } else {
       if (totalFindingsCount > 0) {
         summaryBody += `**Feedback**: 🔍 ${totalFindingsCount} point(s) of feedback provided for discussion.\n`;
@@ -194,24 +190,11 @@ export class GitHubClient {
       }
     }
 
-    // If there are general/file-level findings without line numbers, append them to summary
-    if (generalFindings.length > 0) {
-      summaryBody += `\n---\n### 📋 General & File-Level Findings\n\n`;
-      for (const f of generalFindings) {
-        const alertType =
-          f.severity === 'CRITICAL'
-            ? '[!CAUTION]'
-            : f.severity === 'WARNING'
-            ? '[!WARNING]'
-            : '[!NOTE]';
-
-        const fileLabel = f.file_path ? `📄 \`${f.file_path}\`` : '📌 General Architecture';
-        summaryBody += `#### ${fileLabel}\n> ${alertType}\n> **${f.severity}**: ${f.comment}\n\n`;
-      }
-    }
+    // Only post inline comments when there are actual blocking/critical findings
+    const shouldPostInline = reviewEvent === 'REQUEST_CHANGES' && inlineComments.length > 0;
 
     try {
-      // Attempt to submit review with inline comments
+      // Attempt to submit review
       await this.octokit.rest.pulls.createReview({
         owner,
         repo,
@@ -219,7 +202,7 @@ export class GitHubClient {
         commit_id: commitId,
         event: reviewEvent,
         body: summaryBody,
-        comments: inlineComments.length > 0 ? inlineComments : undefined,
+        comments: shouldPostInline ? inlineComments : undefined,
       });
 
       // Clean up standby comment after successful review
