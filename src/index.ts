@@ -159,7 +159,7 @@ async function bootstrap() {
 
   // 5. Start Worker
   const worker = new ReviewWorker(config);
-  worker.start(3000);
+  worker.start(config.worker.poll_interval_ms);
 
   // Graceful shutdown
   const shutdown = () => {

@@ -12,10 +12,13 @@ export class ReviewWorker {
   private reviewer: OpenCodeReviewer;
   private isRunning: boolean = false;
   private timer: NodeJS.Timeout | null = null;
-  private isProcessing: boolean = false;
+  private activeJobsCount: number = 0;
+  private maxConcurrency: number;
+  private runningPrs: Set<string> = new Set<string>();
 
   constructor(config: AppConfig) {
     this.config = config;
+    this.maxConcurrency = Math.max(1, config.worker?.concurrency || 2);
     this.githubAuth = new GitHubAuth(
       config.github.app_id,
       config.github.private_key_path
@@ -24,24 +27,25 @@ export class ReviewWorker {
     this.reviewer = new OpenCodeReviewer(config);
   }
 
-  start(pollIntervalMs = 3000): void {
+  start(pollIntervalMs?: number): void {
     if (this.isRunning) return;
     this.isRunning = true;
-    console.log('[Worker] Review worker loop started.');
+    const interval = pollIntervalMs || this.config.worker?.poll_interval_ms || 3000;
+    console.log(
+      `[Worker] Review worker loop started (Concurrency: ${this.maxConcurrency}, Interval: ${interval}ms).`
+    );
 
     const loop = async () => {
       if (!this.isRunning) return;
 
-      if (!this.isProcessing) {
-        try {
-          await this.processNextJob();
-        } catch (err: any) {
-          console.error('[Worker] Unhandled error during job processing:', err);
-        }
+      try {
+        await this.dispatchAvailableJobs();
+      } catch (err: any) {
+        console.error('[Worker] Unhandled error during job dispatching:', err);
       }
 
       if (this.isRunning) {
-        this.timer = setTimeout(loop, pollIntervalMs);
+        this.timer = setTimeout(loop, interval);
       }
     };
 
@@ -57,15 +61,48 @@ export class ReviewWorker {
     console.log('[Worker] Review worker stopped.');
   }
 
-  private async processNextJob(): Promise<void> {
-    const job = JobQueue.dequeueNext();
-    if (!job) {
-      return;
-    }
+  private async dispatchAvailableJobs(): Promise<void> {
+    while (this.activeJobsCount < this.maxConcurrency && this.isRunning) {
+      const job = JobQueue.dequeueNext();
+      if (!job) {
+        break;
+      }
 
-    this.isProcessing = true;
+      const prKey = `${job.repository}#${job.pr_number}`;
+      if (this.runningPrs.has(prKey)) {
+        // A job for this specific PR is already currently running.
+        // Check if this queued job is already superseded
+        if (JobQueue.isSuperseded(job.id, job.repository, job.pr_number)) {
+          console.log(
+            `[Worker] Job #${job.id} (${prKey}) was superseded by a newer commit. Skipping.`
+          );
+          JobQueue.updateStatus(job.id, 'superseded');
+          continue;
+        }
+
+        // Re-queue the job so it can be picked up after current PR review finishes
+        JobQueue.updateStatus(job.id, 'queued');
+        break;
+      }
+
+      this.activeJobsCount++;
+      this.runningPrs.add(prKey);
+
+      // Run async job in background
+      this.processJob(job)
+        .catch((err) => {
+          console.error(`[Worker] Unexpected error in job #${job.id}:`, err);
+        })
+        .finally(() => {
+          this.activeJobsCount--;
+          this.runningPrs.delete(prKey);
+        });
+    }
+  }
+
+  private async processJob(job: ReviewJob): Promise<void> {
     console.log(
-      `\n[Worker] Picked up Job #${job.id} for ${job.repository}#${job.pr_number} (SHA: ${job.head_sha.substring(0, 7)})`
+      `\n[Worker] Picked up Job #${job.id} for ${job.repository}#${job.pr_number} (SHA: ${job.head_sha.substring(0, 7)}) [Active: ${this.activeJobsCount}/${this.maxConcurrency}]`
     );
 
     try {
@@ -75,7 +112,6 @@ export class ReviewWorker {
           `[Worker] Job #${job.id} (${job.repository}#${job.pr_number}) was superseded by a newer commit. Skipping.`
         );
         JobQueue.updateStatus(job.id, 'superseded');
-        this.isProcessing = false;
         return;
       }
 
@@ -86,7 +122,6 @@ export class ReviewWorker {
           `[Worker] Repository ${job.repository} is disabled in config. Marking job #${job.id} as completed (skipped).`
         );
         JobQueue.updateStatus(job.id, 'completed', 'Repository disabled in config');
-        this.isProcessing = false;
         return;
       }
 
@@ -109,13 +144,16 @@ export class ReviewWorker {
         console.warn(`[Worker] Could not post initial standby comment: ${err.message}`);
       }
 
+      const targetBaseBranch = repoConfig?.base_branch || job.base_branch || 'main';
+
       try {
         // 4. Prepare isolated workspace (git clone/fetch)
-        console.log(`[Worker] Preparing workspace for ${job.repository} PR #${job.pr_number}...`);
+        console.log(`[Worker] Preparing workspace for ${job.repository} PR #${job.pr_number} (Base: ${targetBaseBranch})...`);
         const workspacePath = await this.workspaceManager.prepareWorkspace({
           repository: job.repository,
           prNumber: job.pr_number,
           headSha: job.head_sha,
+          baseBranch: targetBaseBranch,
           token,
         });
 
@@ -126,6 +164,7 @@ export class ReviewWorker {
           repository: job.repository,
           prNumber: job.pr_number,
           headSha: job.head_sha,
+          baseBranch: targetBaseBranch,
           repoConfig,
         });
 
@@ -166,8 +205,6 @@ export class ReviewWorker {
     } catch (err: any) {
       console.error(`[Worker] Job #${job.id} failed:`, err);
       JobQueue.updateStatus(job.id, 'failed', err.message || String(err));
-    } finally {
-      this.isProcessing = false;
     }
   }
 }

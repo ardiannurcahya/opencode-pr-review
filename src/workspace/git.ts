@@ -29,9 +29,10 @@ export class WorkspaceManager {
     repository: string;
     prNumber: number;
     headSha: string;
+    baseBranch?: string;
     token: string;
   }): Promise<string> {
-    const { repository, prNumber, headSha, token } = params;
+    const { repository, prNumber, headSha, baseBranch = 'main', token } = params;
     const workspacePath = this.getWorkspacePath(repository, prNumber);
 
     if (!fs.existsSync(workspacePath)) {
@@ -55,7 +56,7 @@ export class WorkspaceManager {
       );
     }
 
-    // Fetch PR head branch and base branch
+    // Fetch PR head branch
     await execFileAsync(
       'git',
       ['fetch', 'origin', `pull/${prNumber}/head`, '--force'],
@@ -68,12 +69,16 @@ export class WorkspaceManager {
       { cwd: workspacePath }
     );
 
-    // Ensure base branch is fetched from origin for diff comparison
+    // Ensure target base branch is fetched from origin for diff comparison
     try {
-      await execFileAsync('git', ['fetch', 'origin', 'main'], {
+      await execFileAsync('git', ['fetch', 'origin', baseBranch], {
         cwd: workspacePath,
       });
-    } catch {}
+    } catch (err: any) {
+      console.warn(
+        `[WorkspaceManager] Failed to fetch base branch '${baseBranch}': ${err.message}`
+      );
+    }
 
     await execFileAsync('git', ['clean', '-fd'], {
       cwd: workspacePath,

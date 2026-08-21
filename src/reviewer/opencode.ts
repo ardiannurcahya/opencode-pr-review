@@ -65,11 +65,12 @@ Return ONLY a valid JSON object matching:
     repository: string;
     prNumber: number;
     headSha: string;
+    baseBranch?: string;
     repoConfig?: RepoConfig;
   }): Promise<ReviewResult> {
     const { workspaceDir, repository, prNumber, repoConfig } = params;
 
-    const baseBranch = repoConfig?.base_branch || 'main';
+    const baseBranch = repoConfig?.base_branch || params.baseBranch || 'main';
     const model = repoConfig?.model || this.config.opencode.default_model;
     const customPrompt = repoConfig?.custom_prompt || '';
     const basePrompt = this.resolvePromptTemplate(repository, repoConfig);

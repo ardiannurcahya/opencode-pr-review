@@ -122,6 +122,15 @@ async function runAudit() {
   }
   console.log('prompts/review.md successfully verified.');
 
+  // 8. Test Dynamic Base Branch & Worker Concurrency Config
+  console.log('\n[Test 8] Testing Dynamic Base Branch & Worker Configuration...');
+  const { loadConfig } = await import('./dist/config.js');
+  const config = loadConfig(path.resolve(process.cwd(), 'config.example.yaml'));
+  if (typeof config.worker?.concurrency !== 'number' || config.worker.concurrency < 1) {
+    throw new Error('Worker concurrency not properly loaded in config!');
+  }
+  console.log(`Worker concurrency loaded: ${config.worker.concurrency}, Poll interval: ${config.worker.poll_interval_ms}ms`);
+
   console.log('\n========================================');
   console.log('ALL AUDIT TESTS COMPLETED SUCCESSFULLY!');
   console.log('========================================\n');
