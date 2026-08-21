@@ -24,6 +24,11 @@ workspace:
   base_dir: "./workspaces"
   clean_after_review: false
 
+# Background Worker & Queue configuration
+worker:
+  concurrency: 2 # Number of PR reviews to process in parallel
+  poll_interval_ms: 3000 # Queue polling interval in milliseconds
+
 # Repositories configuration
 repositories:
   # ==========================================================

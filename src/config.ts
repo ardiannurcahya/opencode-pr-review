@@ -36,6 +36,10 @@ export interface AppConfig {
     base_dir: string;
     clean_after_review: boolean;
   };
+  worker: {
+    concurrency: number;
+    poll_interval_ms: number;
+  };
   repos: Record<string, RepoConfig>;
 }
 
@@ -96,6 +100,16 @@ export function loadConfig(customPath?: string): AppConfig {
         parsed.workspace?.base_dir ||
         path.resolve(process.cwd(), 'workspaces'),
       clean_after_review: parsed.workspace?.clean_after_review ?? false,
+    },
+    worker: {
+      concurrency:
+        parsed.worker?.concurrency ||
+        Number(process.env.WORKER_CONCURRENCY) ||
+        2,
+      poll_interval_ms:
+        parsed.worker?.poll_interval_ms ||
+        Number(process.env.WORKER_POLL_INTERVAL_MS) ||
+        3000,
     },
     repos: (parsed as any).repositories || parsed.repos || {},
   };

@@ -57,8 +57,8 @@ sequenceDiagram
     Server->>DB: Enqueue Job (repository, PR number, HEAD SHA)
     Server-->>GitHub: HTTP 200 OK (Job Enqueued)
 
-    loop Worker Loop (Every 3 seconds)
-        Worker->>DB: Dequeue Next Job
+    loop Worker Loop (Configurable Concurrency & Interval)
+        Worker->>DB: Dequeue Next Available Job (up to max concurrency)
         DB-->>Worker: Return Job Details
         Worker->>Worker: Check if superseded by newer commit
         alt Is Superseded
@@ -66,7 +66,7 @@ sequenceDiagram
         else Is Active Job
             Worker->>Client: Generate Installation Token (JWT)
             Worker->>Client: Post Instant Standby Comment ("Analyzing...")
-            Worker->>Worker: Prepare isolated Git Workspace (fetch origin/main & checkout HEAD)
+            Worker->>Worker: Prepare isolated Git Workspace (fetch dynamic origin/base_branch & checkout HEAD)
             Worker->>Engine: Run OpenCode review with prompts/review.md
             Engine-->>Worker: Stream NDJSON output (step_start, tool_use, text)
             Worker->>Worker: Parse balanced JSON review payload
@@ -94,9 +94,10 @@ Incoming payloads from GitHub are verified using HMAC SHA-256 against `WEBHOOK_S
 - Constant-time buffer comparison (`crypto.timingSafeEqual`) prevents timing attack vulnerabilities.
 - Non-actionable PR events (such as `labeled`, `assigned`, `closed`) are filtered out immediately.
 
-### 3.2. SQLite Queue and Smart Deduplication (`src/queue/queue.ts`)
-- **Zero Heavy Dependencies**: Implemented using Node.js experimental SQLite module or SQLite3.
+### 3.2. SQLite Queue and Smart Deduplication (`src/queue/queue.ts` & `src/worker/worker.ts`)
+- **Zero Heavy Dependencies**: Implemented using Node.js experimental SQLite module or SQLite3 in WAL mode.
 - **Smart Deduplication**: When multiple commits are pushed rapidly to the same PR, older queued jobs are marked as superseded and bypassed, conserving LLM token capacity.
+- **Configurable Concurrency**: Supports parallel worker processing (`worker.concurrency`) with per-PR workspace isolation guards.
 
 ### 3.3. GitHub App Token Management (`src/github/auth.ts`)
 - The service generates an RS256 JWT signed with the GitHub App private key (`github-app.private-key.pem`).
@@ -105,7 +106,7 @@ Incoming payloads from GitHub are verified using HMAC SHA-256 against `WEBHOOK_S
 
 ### 3.4. Git Workspace Isolation (`src/workspace/git.ts`)
 - Repositories are cloned into dedicated directories (`workspaces/<owner>/<repo>/pr-<number>`).
-- Re-fetches the latest target base branch (`origin/main`) and resets the working tree cleanly prior to analysis.
+- Dynamically fetches the target base branch (`origin/<base_branch>`) and resets the working tree cleanly prior to analysis.
 
 ### 3.5. OpenCode NDJSON Stream Parser (`src/reviewer/parser.ts`)
 OpenCode outputs a structured event stream (`step_start`, `tool_use`, `step_finish`, `text`). The parser:
