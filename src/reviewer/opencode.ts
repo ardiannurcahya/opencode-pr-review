@@ -81,9 +81,13 @@ Return ONLY a valid JSON object matching:
     prompt += `- PR Number: #${prNumber}\n`;
     prompt += `- Base Branch: origin/${baseBranch}\n\n`;
 
+    const maxFindings = repoConfig?.max_findings ?? 10;
+
     if (customPrompt) {
       prompt += `### Additional Repository-Specific Instructions:\n${customPrompt}\n\n`;
     }
+
+    prompt += `### Review Constraints:\n- Limit your response to at most ${maxFindings} findings. Prioritize CRITICAL issues first, then WARNING, then INFO. If there are more issues than the limit, report only the most impactful ones.\n\n`;
 
     prompt += `Please review the diff against origin/${baseBranch} and output your review findings now.`;
 
@@ -163,6 +167,13 @@ Return ONLY a valid JSON object matching:
 
         try {
           const result = parseReviewResult(stdout);
+          if (result.findings.length > maxFindings) {
+            const severityOrder: Record<string, number> = { CRITICAL: 0, WARNING: 1, INFO: 2 };
+            result.findings.sort(
+              (a, b) => severityOrder[a.severity] - severityOrder[b.severity]
+            );
+            result.findings = result.findings.slice(0, maxFindings);
+          }
           resolve(result);
         } catch (err: any) {
           reject(
