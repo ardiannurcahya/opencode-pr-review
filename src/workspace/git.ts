@@ -88,6 +88,54 @@ export class WorkspaceManager {
   }
 
   /**
+   * Check if PR branch has merge conflicts against target base branch
+   */
+  async checkMergeConflict(
+    workspacePath: string,
+    baseBranch = 'main'
+  ): Promise<{ hasConflict: boolean; conflictedFiles: string[] }> {
+    try {
+      await execFileAsync(
+        'git',
+        ['merge', '--no-commit', '--no-ff', `origin/${baseBranch}`],
+        { cwd: workspacePath }
+      );
+      try {
+        await execFileAsync('git', ['merge', '--abort'], { cwd: workspacePath });
+      } catch {}
+      return { hasConflict: false, conflictedFiles: [] };
+    } catch {
+      const conflictedFiles: string[] = [];
+      try {
+        const { stdout } = await execFileAsync(
+          'git',
+          ['status', '--porcelain'],
+          { cwd: workspacePath }
+        );
+        for (const line of stdout.split(/\r?\n/)) {
+          if (
+            line.startsWith('UU ') ||
+            line.startsWith('AA ') ||
+            line.startsWith('UD ') ||
+            line.startsWith('DU ') ||
+            line.startsWith('DD ') ||
+            line.startsWith('AU ') ||
+            line.startsWith('UA ')
+          ) {
+            conflictedFiles.push(line.slice(3).trim());
+          }
+        }
+      } catch {}
+
+      try {
+        await execFileAsync('git', ['merge', '--abort'], { cwd: workspacePath });
+      } catch {}
+
+      return { hasConflict: true, conflictedFiles };
+    }
+  }
+
+  /**
    * Optional cleanup of workspace directory after review
    */
   async cleanupWorkspace(repository: string, prNumber: number): Promise<void> {

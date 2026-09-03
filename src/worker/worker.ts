@@ -157,6 +157,17 @@ export class ReviewWorker {
           token,
         });
 
+        // 4.5. Check for Git merge conflicts against base branch
+        const conflictCheck = await this.workspaceManager.checkMergeConflict(
+          workspacePath,
+          targetBaseBranch
+        );
+        if (conflictCheck.hasConflict) {
+          console.warn(
+            `[Worker] ⚠️ Merge conflict detected against origin/${targetBaseBranch} (${conflictCheck.conflictedFiles.length} file(s): ${conflictCheck.conflictedFiles.join(', ')})`
+          );
+        }
+
         // 5. Run OpenCode review engine
         console.log(`[Worker] Executing OpenCode review engine...`);
         const reviewResult = await this.reviewer.review({
@@ -167,6 +178,21 @@ export class ReviewWorker {
           baseBranch: targetBaseBranch,
           repoConfig,
         });
+
+        // Inject merge conflict findings if detected
+        if (conflictCheck.hasConflict) {
+          reviewResult.verdict = 'REQUEST_CHANGES';
+          reviewResult.summary = `• ⚠️ **MERGE CONFLICT DETECTED**: This PR cannot be automatically merged with \`origin/${targetBaseBranch}\`. Conflicted file(s): \`${conflictCheck.conflictedFiles.join('`, `') || 'unknown'}\`.\n` + reviewResult.summary;
+
+          for (const file of conflictCheck.conflictedFiles) {
+            reviewResult.findings.unshift({
+              file_path: file,
+              line_number: 1,
+              severity: 'CRITICAL',
+              comment: `⚠️ **Merge Conflict Detected:** This file has merge conflicts with \`origin/${targetBaseBranch}\`.\n\nPlease resolve the merge conflicts locally (e.g., via \`git merge origin/${targetBaseBranch}\` or \`git rebase origin/${targetBaseBranch}\`) before this pull request can be merged.`,
+            });
+          }
+        }
 
         console.log(
           `[Worker] OpenCode review finished with verdict: ${reviewResult.verdict} (${reviewResult.findings.length} findings)`
