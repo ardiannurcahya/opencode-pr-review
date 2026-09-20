@@ -58,18 +58,9 @@ Developer Opens PR -> Webhook (<1s) -> Standby Comment ("Analyzing...") -> OpenC
 
 ## Architecture Overview
 
-```mermaid
-flowchart LR
-    GH[GitHub PR Event] -->|HTTPS Webhook| Caddy[Caddy / Reverse Proxy]
-    Caddy -->|POST /webhook/github| App[Webhook Service]
-    App -->|HMAC Verification| Queue[(SQLite Queue)]
-    Queue -->|Superseded Check| Worker[Review Worker]
-    Worker -->|1. Post Standby| GH
-    Worker -->|2. Git Checkout| Workspace[Isolated Workspace]
-    Worker -->|3. Run Review| Engine[OpenCode Engine]
-    Engine -->|4. NDJSON Stream| Parser[Stream Parser]
-    Parser -->|5. Post Review and Clean Standby| GH
-```
+<p align="center">
+  <img src="docs/images/architecture-overview.jpg" alt="Architecture Overview" width="100%" />
+</p>
 
 ---
 
